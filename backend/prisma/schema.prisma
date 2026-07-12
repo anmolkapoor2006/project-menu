@@ -1,0 +1,105 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  SUPER_ADMIN
+  RESTAURANT_ADMIN
+}
+
+enum OrderStatus {
+  RECEIVED
+  PREPARING
+  SERVED
+  CANCELLED
+}
+
+model User {
+  id           String       @id @default(uuid())
+  name         String
+  email        String       @unique
+  passwordHash String
+  role         Role         @default(RESTAURANT_ADMIN)
+  restaurants  Restaurant[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+}
+
+model Restaurant {
+  id            String         @id @default(uuid())
+  ownerId       String
+  owner         User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  name          String
+  slug          String         @unique
+  logoUrl       String?
+  address       String?
+  contactNumber String?
+  isActive      Boolean        @default(true)
+  categories    MenuCategory[]
+  scanEvents    QRScanEvent[]
+  orders        Order[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+model MenuCategory {
+  id           String     @id @default(uuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  name         String
+  displayOrder Int        @default(0)
+  items        MenuItem[]
+  createdAt    DateTime   @default(now())
+}
+
+model MenuItem {
+  id           String      @id @default(uuid())
+  categoryId   String
+  category     MenuCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  name         String
+  description  String?
+  price        Decimal     @db.Decimal(10, 2)
+  imageUrl     String?
+  isVeg        Boolean     @default(true)
+  isAvailable  Boolean     @default(true)
+  displayOrder Int         @default(0)
+  orderItems   OrderItem[]
+  createdAt    DateTime    @default(now())
+}
+
+model QRScanEvent {
+  id           String     @id @default(uuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  source       String     // "qr" or "direct_link"
+  userAgent    String?
+  timestamp    DateTime   @default(now())
+}
+
+model Order {
+  id           String      @id @default(uuid())
+  restaurantId String
+  restaurant   Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  tableNumber  String?
+  status       OrderStatus @default(RECEIVED)
+  items        OrderItem[]
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+}
+
+model OrderItem {
+  id           String   @id @default(uuid())
+  orderId      String
+  order        Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItemId   String
+  menuItem     MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  quantity     Int
+  priceAtOrder Decimal  @db.Decimal(10, 2)
+  notes        String?
+  createdAt    DateTime @default(now())
+}

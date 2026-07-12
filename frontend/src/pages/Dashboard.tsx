@@ -85,78 +85,78 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col md:flex-row">
+    <div className="min-h-screen bg-[#FAF9F5] text-[#1C1917] flex flex-col md:flex-row">
       {/* Sidebar Nav */}
-      <aside className="w-full md:w-64 bg-slate-900 border-b md:border-b-0 md:border-r border-slate-800 flex flex-col justify-between p-6 shrink-0">
+      <aside className="w-full md:w-64 bg-white border-b md:border-b-0 md:border-r border-[#EAE8E4] flex flex-col justify-between p-6 shrink-0">
         <div className="space-y-8">
           <div>
-            <h1 className="text-2xl font-extrabold text-white tracking-tight flex items-center gap-2">
-              Menu<span className="text-indigo-400">QR</span>
+            <h1 className="text-2xl font-normal text-[#1C1917] tracking-tight flex items-center gap-2 font-serif-display">
+              Menu<span className="text-[#5E6F58] italic font-normal">QR</span>
             </h1>
-            <p className="text-xs text-slate-500 mt-1 uppercase tracking-wider">Cafe Admin Control</p>
+            <p className="text-[10px] text-[#7A7571] mt-1 uppercase tracking-wider font-semibold">Cafe Admin Dashboard</p>
           </div>
 
           <nav className="space-y-1">
             <button
               onClick={() => setActiveTab('overview')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs uppercase tracking-wider font-bold transition-all ${
                 activeTab === 'overview'
-                  ? 'bg-indigo-600 text-white shadow-md'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                  ? 'bg-[#5E6F58]/10 text-[#5E6F58] border border-[#5E6F58]/20'
+                  : 'text-[#7A7571] hover:text-[#1C1917] hover:bg-[#F6F4F0] border border-transparent'
               }`}
             >
-              <Store size={18} />
+              <Store size={16} />
               Overview & QR
             </button>
             <button
               onClick={() => setActiveTab('menu')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs uppercase tracking-wider font-bold transition-all ${
                 activeTab === 'menu'
-                  ? 'bg-indigo-600 text-white shadow-md'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                  ? 'bg-[#5E6F58]/10 text-[#5E6F58] border border-[#5E6F58]/20'
+                  : 'text-[#7A7571] hover:text-[#1C1917] hover:bg-[#F6F4F0] border border-transparent'
               }`}
             >
-              <UtensilsCrossed size={18} />
+              <UtensilsCrossed size={16} />
               Menu Builder
             </button>
             <button
               onClick={() => setActiveTab('orders')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs uppercase tracking-wider font-bold transition-all ${
                 activeTab === 'orders'
-                  ? 'bg-indigo-600 text-white shadow-md'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                  ? 'bg-[#5E6F58]/10 text-[#5E6F58] border border-[#5E6F58]/20'
+                  : 'text-[#7A7571] hover:text-[#1C1917] hover:bg-[#F6F4F0] border border-transparent'
               }`}
             >
-              <ClipboardList size={18} />
+              <ClipboardList size={16} />
               Live Kitchen
             </button>
             <button
               onClick={() => setActiveTab('analytics')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs uppercase tracking-wider font-bold transition-all ${
                 activeTab === 'analytics'
-                  ? 'bg-indigo-600 text-white shadow-md'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                  ? 'bg-[#5E6F58]/10 text-[#5E6F58] border border-[#5E6F58]/20'
+                  : 'text-[#7A7571] hover:text-[#1C1917] hover:bg-[#F6F4F0] border border-transparent'
               }`}
             >
-              <BarChart3 size={18} />
+              <BarChart3 size={16} />
               Analytics
             </button>
           </nav>
         </div>
 
-        <div className="pt-6 border-t border-slate-800 mt-6 md:mt-0 flex flex-col gap-4">
+        <div className="pt-6 border-t border-[#EAE8E4] mt-6 md:mt-0 flex flex-col gap-4">
           <div className="flex items-center gap-3 px-2">
-            <div className="w-9 h-9 rounded-full bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 font-bold uppercase">
+            <div className="w-9 h-9 rounded-full bg-[#5E6F58]/10 border border-[#5E6F58]/20 flex items-center justify-center text-[#5E6F58] font-bold uppercase">
               {user.name ? user.name[0] : 'U'}
             </div>
             <div className="truncate">
-              <p className="text-xs font-bold text-white leading-tight">{user.name}</p>
-              <p className="text-[10px] text-slate-500 truncate mt-0.5">{user.email}</p>
+              <p className="text-xs font-bold text-[#1C1917] leading-tight">{user.name}</p>
+              <p className="text-[10px] text-[#7A7571] truncate mt-0.5">{user.email}</p>
             </div>
           </div>
           <button
             onClick={handleLogout}
-            className="flex items-center gap-2 w-full px-4 py-2.5 border border-slate-800 hover:bg-slate-800 text-slate-400 hover:text-red-400 rounded-xl text-xs font-bold transition-all"
+            className="flex items-center gap-2 w-full px-4 py-2.5 border border-[#EAE8E4] hover:bg-[#F6F4F0] text-[#7A7571] hover:text-red-600 rounded-xl text-xs font-bold transition-all"
           >
             <LogOut size={14} />
             Logout
@@ -169,16 +169,16 @@ export default function Dashboard() {
         {activeTab === 'overview' && (
           <div className="space-y-8">
             {/* Cafe Details Card */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-md space-y-6">
-              <div className="flex justify-between items-start border-b border-slate-800 pb-4">
+            <div className="bg-white border border-[#EAE8E4] rounded-2xl p-8 shadow-[0_4px_20px_rgb(28,25,23,0.01)] space-y-6">
+              <div className="flex justify-between items-start border-b border-[#EAE8E4] pb-4">
                 <div>
-                  <h2 className="text-xl font-bold text-white">Cafe Profile</h2>
-                  <p className="text-xs text-slate-500 mt-0.5">Manage your public information and logo</p>
+                  <h2 className="text-xl font-bold text-[#1C1917]">Cafe Profile</h2>
+                  <p className="text-xs text-[#7A7571] mt-0.5">Manage your public information and logo</p>
                 </div>
                 {!editingProfile && (
                   <button
                     onClick={() => setEditingProfile(true)}
-                    className="flex items-center gap-1.5 px-4 py-2 border border-slate-800 hover:bg-slate-800 rounded-lg text-xs font-semibold transition-all text-slate-300"
+                    className="flex items-center gap-1.5 px-4 py-2 border border-[#EAE8E4] hover:bg-[#F6F4F0] rounded-lg text-xs font-bold transition-all text-[#7A7571] hover:text-[#1C1917]"
                   >
                     <Settings size={14} />
                     Edit Details
@@ -187,7 +187,7 @@ export default function Dashboard() {
               </div>
 
               {profileError && (
-                <div className="bg-red-500/10 border border-red-500/30 text-red-200 text-sm p-4 rounded-xl">
+                <div className="bg-red-500/5 border border-red-500/20 text-red-700 text-xs p-4 rounded-xl">
                   {profileError}
                 </div>
               )}
@@ -196,46 +196,46 @@ export default function Dashboard() {
                 <form onSubmit={handleSaveProfile} className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-slate-300">Cafe Name</label>
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-[#7A7571]">Cafe Name</label>
                       <input
                         type="text"
                         required
                         value={restName}
                         onChange={(e) => setRestName(e.target.value)}
-                        className="mt-1 block w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm transition-all"
+                        className="mt-2 block w-full px-4 py-2.5 bg-[#F6F4F0] border border-[#E5E2DC] rounded-xl text-[#1C1917] focus:outline-none focus:ring-1 focus:ring-[#5E6F58] focus:border-[#5E6F58] text-sm transition-all"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-300">Contact Number</label>
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-[#7A7571]">Contact Number</label>
                       <input
                         type="text"
                         value={restContact}
                         onChange={(e) => setRestContact(e.target.value)}
-                        className="mt-1 block w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm transition-all"
+                        className="mt-2 block w-full px-4 py-2.5 bg-[#F6F4F0] border border-[#E5E2DC] rounded-xl text-[#1C1917] focus:outline-none focus:ring-1 focus:ring-[#5E6F58] focus:border-[#5E6F58] text-sm transition-all"
                         placeholder="1234567890"
                       />
                     </div>
                     <div className="md:col-span-2">
-                      <label className="block text-sm font-medium text-slate-300">Address</label>
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-[#7A7571]">Address</label>
                       <input
                         type="text"
                         value={restAddress}
                         onChange={(e) => setRestAddress(e.target.value)}
-                        className="mt-1 block w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm transition-all"
+                        className="mt-2 block w-full px-4 py-2.5 bg-[#F6F4F0] border border-[#E5E2DC] rounded-xl text-[#1C1917] focus:outline-none focus:ring-1 focus:ring-[#5E6F58] focus:border-[#5E6F58] text-sm transition-all"
                         placeholder="123 Main Street, City"
                       />
                     </div>
                     <div className="md:col-span-2">
-                      <label className="block text-sm font-medium text-slate-300 mb-1">Logo</label>
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-[#7A7571] mb-1">Logo</label>
                       <div className="flex items-center gap-4">
-                        <div className="relative w-16 h-16 rounded-xl border border-slate-800 bg-slate-950 flex items-center justify-center overflow-hidden">
+                        <div className="relative w-16 h-16 rounded-xl border border-[#E5E2DC] bg-[#F6F4F0] flex items-center justify-center overflow-hidden">
                           {logoPreview ? (
                             <img src={logoPreview} alt="Logo" className="w-full h-full object-cover" />
                           ) : (
-                            <Camera className="text-slate-600" size={24} />
+                            <Camera className="text-slate-400" size={24} />
                           )}
                         </div>
-                        <label className="cursor-pointer flex items-center justify-center border border-slate-800 hover:border-indigo-500/50 bg-slate-950 px-4 py-3 rounded-xl hover:bg-slate-850 transition-all text-xs font-semibold text-slate-400 hover:text-white">
+                        <label className="cursor-pointer flex items-center justify-center border border-[#E5E2DC] hover:border-[#5E6F58]/50 bg-[#F6F4F0] px-4 py-3 rounded-xl hover:bg-[#EAE8E4] transition-all text-xs font-bold text-[#7A7571] hover:text-[#1C1917]">
                           <span>Upload Logo</span>
                           <input type="file" accept="image/*" className="hidden" onChange={handleLogoChange} />
                         </label>
@@ -247,9 +247,9 @@ export default function Dashboard() {
                     <button
                       type="submit"
                       disabled={savingProfile}
-                      className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-sm font-semibold transition-all disabled:opacity-50"
+                      className="flex items-center gap-2 px-5 py-2.5 bg-[#5E6F58] hover:bg-[#4E5D49] text-white rounded-xl text-xs font-bold transition-all disabled:opacity-50"
                     >
-                      {savingProfile ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
+                      {savingProfile ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
                       Save Changes
                     </button>
                     <button
@@ -261,7 +261,7 @@ export default function Dashboard() {
                         setRestAddress(restaurant.address || '');
                         setRestContact(restaurant.contactNumber || '');
                       }}
-                      className="px-5 py-2.5 border border-slate-850 text-slate-300 rounded-xl text-sm font-semibold hover:bg-slate-850"
+                      className="px-5 py-2.5 border border-[#EAE8E4] text-[#7A7571] rounded-xl text-xs font-bold hover:bg-[#F6F4F0]"
                     >
                       Cancel
                     </button>
@@ -269,18 +269,18 @@ export default function Dashboard() {
                 </form>
               ) : (
                 <div className="flex flex-col sm:flex-row items-center gap-6">
-                  <div className="w-20 h-20 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
+                  <div className="w-20 h-20 rounded-2xl bg-[#F6F4F0] border border-[#EAE8E4] flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
                     {restaurant.logoUrl ? (
                       <img src={`${API_BASE_URL}${restaurant.logoUrl}`} alt="Logo" className="w-full h-full object-cover" />
                     ) : (
-                      <Store size={32} className="text-slate-700" />
+                      <Store size={32} className="text-[#7A7571]" />
                     )}
                   </div>
 
                   <div className="text-center sm:text-left space-y-1">
-                    <h3 className="text-2xl font-bold text-white leading-tight">{restaurant.name}</h3>
-                    <p className="text-sm text-slate-400">{restaurant.address || 'No address registered'}</p>
-                    <p className="text-xs text-slate-500">Contact: {restaurant.contactNumber || 'N/A'}</p>
+                    <h3 className="text-2xl font-bold text-[#1C1917] tracking-tight">{restaurant.name}</h3>
+                    <p className="text-sm text-[#7A7571]">{restaurant.address || 'No address registered'}</p>
+                    <p className="text-xs text-[#7A7571] font-semibold">Contact: {restaurant.contactNumber || 'N/A'}</p>
                   </div>
                 </div>
               )}

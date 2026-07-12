@@ -57,14 +57,14 @@ export default function AnalyticsView({ restaurantId }: AnalyticsViewProps) {
   if (loading) {
     return (
       <div className="flex justify-center items-center h-96">
-        <Loader2 className="animate-spin text-indigo-500" size={40} />
+        <Loader2 className="animate-spin text-[#5E6F58]" size={40} />
       </div>
     );
   }
 
   if (error || !summary) {
     return (
-      <div className="bg-red-500/10 border border-red-500/30 text-red-200 text-sm p-4 rounded-xl">
+      <div className="bg-red-500/5 border border-red-500/20 text-red-700 text-xs p-4 rounded-xl">
         {error || 'Failed to aggregate metrics.'}
       </div>
     );
@@ -73,73 +73,73 @@ export default function AnalyticsView({ restaurantId }: AnalyticsViewProps) {
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-2xl font-bold text-white">Performance Analytics</h2>
-        <p className="text-xs text-slate-500 mt-1">Track visitor scans, menu engagement, and orders over time</p>
+        <h2 className="text-2xl font-bold text-[#1C1917]">Performance Analytics</h2>
+        <p className="text-xs text-[#7A7571] mt-1">Track visitor scans, menu engagement, and orders over time</p>
       </div>
 
       {/* Metric Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {/* Card 1 */}
-        <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-3">
-          <div className="flex justify-between items-center text-slate-400">
-            <span className="text-xs font-semibold uppercase tracking-wider">Total Scans</span>
-            <QrCode size={18} className="text-indigo-400" />
+        <div className="bg-white border border-[#EAE8E4] p-5 rounded-2xl space-y-3 shadow-[0_4px_20px_rgb(28,25,23,0.01)]">
+          <div className="flex justify-between items-center text-[#7A7571]">
+            <span className="text-[10px] font-semibold uppercase tracking-wider">Total Scans</span>
+            <QrCode size={18} className="text-[#5E6F58]" />
           </div>
-          <p className="text-2xl font-black text-white">{summary.totalScans}</p>
-          <span className="text-[10px] text-slate-500 block">QR code scans</span>
+          <p className="text-2xl font-black text-[#1C1917]">{summary.totalScans}</p>
+          <span className="text-[9px] text-slate-400 block font-medium">QR code scans</span>
         </div>
 
         {/* Card 2 */}
-        <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-3">
-          <div className="flex justify-between items-center text-slate-400">
-            <span className="text-xs font-semibold uppercase tracking-wider">Total Views</span>
-            <Eye size={18} className="text-indigo-400" />
+        <div className="bg-white border border-[#EAE8E4] p-5 rounded-2xl space-y-3 shadow-[0_4px_20px_rgb(28,25,23,0.01)]">
+          <div className="flex justify-between items-center text-[#7A7571]">
+            <span className="text-[10px] font-semibold uppercase tracking-wider">Total Views</span>
+            <Eye size={18} className="text-[#5E6F58]" />
           </div>
-          <p className="text-2xl font-black text-white">{summary.totalViews}</p>
-          <span className="text-[10px] text-slate-500 block">Scans + direct views</span>
+          <p className="text-2xl font-black text-[#1C1917]">{summary.totalViews}</p>
+          <span className="text-[9px] text-slate-400 block font-medium">Scans + direct views</span>
         </div>
 
         {/* Card 3 */}
-        <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-3">
-          <div className="flex justify-between items-center text-slate-400">
-            <span className="text-xs font-semibold uppercase tracking-wider">Scan Rate</span>
-            <Percent size={18} className="text-indigo-400" />
+        <div className="bg-white border border-[#EAE8E4] p-5 rounded-2xl space-y-3 shadow-[0_4px_20px_rgb(28,25,23,0.01)]">
+          <div className="flex justify-between items-center text-[#7A7571]">
+            <span className="text-[10px] font-semibold uppercase tracking-wider">Scan Rate</span>
+            <Percent size={18} className="text-[#5E6F58]" />
           </div>
-          <p className="text-2xl font-black text-white">{summary.conversionRate}%</p>
-          <span className="text-[10px] text-slate-500 block">QR conversion vs direct</span>
+          <p className="text-2xl font-black text-[#1C1917]">{summary.conversionRate}%</p>
+          <span className="text-[9px] text-slate-400 block font-medium">QR conversion rate</span>
         </div>
 
         {/* Card 4 */}
-        <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-3">
-          <div className="flex justify-between items-center text-slate-400">
-            <span className="text-xs font-semibold uppercase tracking-wider">Total Orders</span>
-            <ClipboardList size={18} className="text-indigo-400" />
+        <div className="bg-white border border-[#EAE8E4] p-5 rounded-2xl space-y-3 shadow-[0_4px_20px_rgb(28,25,23,0.01)]">
+          <div className="flex justify-between items-center text-[#7A7571]">
+            <span className="text-[10px] font-semibold uppercase tracking-wider">Total Orders</span>
+            <ClipboardList size={18} className="text-[#5E6F58]" />
           </div>
-          <p className="text-2xl font-black text-white">{summary.totalOrders}</p>
-          <span className="text-[10px] text-slate-500 block">Completed orders</span>
+          <p className="text-2xl font-black text-[#1C1917]">{summary.totalOrders}</p>
+          <span className="text-[9px] text-slate-400 block font-medium">Completed orders</span>
         </div>
       </div>
 
       {/* Traffic Trend Chart */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
+      <div className="bg-white border border-[#EAE8E4] rounded-2xl p-6 shadow-[0_4px_20px_rgb(28,25,23,0.01)] space-y-4">
         <div>
-          <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400">Visitor Traffic</h3>
-          <p className="text-[10px] text-slate-500 mt-0.5">Scans and page views over the last 30 days</p>
+          <h3 className="text-xs font-bold uppercase tracking-wider text-[#7A7571]">Visitor Traffic</h3>
+          <p className="text-[9px] text-slate-400 mt-0.5 font-medium">Scans and page views over the last 30 days</p>
         </div>
 
         <div className="h-72 w-full text-xs font-mono">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={viewsTrend} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-              <XAxis dataKey="date" stroke="#64748b" tickFormatter={(str) => str.substring(8, 10)} />
-              <YAxis stroke="#64748b" allowDecimals={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke="#F1EFEA" />
+              <XAxis dataKey="date" stroke="#7A7571" tickFormatter={(str) => str.substring(8, 10)} />
+              <YAxis stroke="#7A7571" allowDecimals={false} />
               <Tooltip 
-                contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', borderRadius: '12px' }}
-                labelClassName="text-slate-400 font-bold"
+                contentStyle={{ backgroundColor: '#ffffff', borderColor: '#EAE8E4', borderRadius: '12px' }}
+                labelClassName="text-[#1C1917] font-bold"
               />
               <Legend verticalAlign="top" height={36} />
-              <Line type="monotone" dataKey="views" name="Page Views" stroke="#6366f1" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
-              <Line type="monotone" dataKey="scans" name="QR Scans" stroke="#10b981" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+              <Line type="monotone" dataKey="views" name="Page Views" stroke="#5E6F58" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+              <Line type="monotone" dataKey="scans" name="QR Scans" stroke="#A78B71" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -147,30 +147,30 @@ export default function AnalyticsView({ restaurantId }: AnalyticsViewProps) {
 
       {/* Top Selling Items Chart */}
       {topItems.length > 0 ? (
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
+        <div className="bg-white border border-[#EAE8E4] rounded-2xl p-6 shadow-[0_4px_20px_rgb(28,25,23,0.01)] space-y-4">
           <div>
-            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400">Popular Menu Items</h3>
-            <p className="text-[10px] text-slate-500 mt-0.5">Top 5 items by total order quantity</p>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-[#7A7571]">Popular Menu Items</h3>
+            <p className="text-[9px] text-slate-400 mt-0.5 font-medium">Top 5 items by total order quantity</p>
           </div>
 
           <div className="h-64 w-full text-xs font-mono">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={topItems} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                <XAxis dataKey="name" stroke="#64748b" />
-                <YAxis stroke="#64748b" allowDecimals={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#F1EFEA" />
+                <XAxis dataKey="name" stroke="#7A7571" />
+                <YAxis stroke="#7A7571" allowDecimals={false} />
                 <Tooltip 
-                  cursor={{ fill: '#0f172a', opacity: 0.2 }}
-                  contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', borderRadius: '12px' }}
-                  labelClassName="text-slate-400 font-bold"
+                  cursor={{ fill: '#FAF9F5', opacity: 0.5 }}
+                  contentStyle={{ backgroundColor: '#ffffff', borderColor: '#EAE8E4', borderRadius: '12px' }}
+                  labelClassName="text-[#1C1917] font-bold"
                 />
-                <Bar dataKey="value" name="Qty Sold" fill="#6366f1" radius={[8, 8, 0, 0]} barSize={36} />
+                <Bar dataKey="value" name="Qty Sold" fill="#5E6F58" radius={[8, 8, 0, 0]} barSize={36} />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
       ) : (
-        <div className="bg-slate-900 border border-slate-850 p-6 rounded-2xl text-center text-slate-500 text-xs">
+        <div className="bg-white border border-[#EAE8E4] p-6 rounded-2xl text-center text-[#7A7571] text-xs">
           Order analytics charts will populate as soon as customers place live orders.
         </div>
       )}

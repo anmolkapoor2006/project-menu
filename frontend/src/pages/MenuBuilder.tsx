@@ -57,10 +57,6 @@ export default function MenuBuilder({ restaurantId }: MenuBuilderProps) {
       const restaurant = JSON.parse(localStorage.getItem('restaurant') || '{}');
       if (restaurant.slug) {
         const response = await api.get(`/api/public/menu/${restaurant.slug}`);
-        // The public menu returns only available items. For admin editing, we want categories and their items.
-        // We will fetch from public menu first as it has active structure, but category management will handle all items.
-        // Wait, for admin, let's fetch category listings, then fetch the full menu items.
-        // Let's implement category + item list mappings from response.
         setCategories(response.data.restaurant.categories || []);
       }
     } catch (err) {
@@ -97,13 +93,11 @@ export default function MenuBuilder({ restaurantId }: MenuBuilderProps) {
 
     try {
       if (editingCategory) {
-        // Update category
         await api.put(`/api/categories/${editingCategory.id}`, {
           name: catName,
           displayOrder: catOrder,
         });
       } else {
-        // Create category
         await api.post(`/api/restaurants/${restaurantId}/categories`, {
           name: catName,
           displayOrder: catOrder,
@@ -225,7 +219,7 @@ export default function MenuBuilder({ restaurantId }: MenuBuilderProps) {
   if (loading) {
     return (
       <div className="flex justify-center items-center h-96">
-        <Loader2 className="animate-spin text-indigo-500" size={48} />
+        <Loader2 className="animate-spin text-[#5E6F58]" size={40} />
       </div>
     );
   }
@@ -233,19 +227,19 @@ export default function MenuBuilder({ restaurantId }: MenuBuilderProps) {
   return (
     <div className="space-y-6">
       {error && (
-        <div className="bg-red-500/10 border border-red-500/30 text-red-200 text-sm p-4 rounded-xl flex justify-between items-center">
+        <div className="bg-red-500/5 border border-red-500/20 text-red-700 text-xs p-4 rounded-xl flex justify-between items-center">
           <span>{error}</span>
-          <button onClick={() => setError('')} className="text-red-400 hover:text-red-200">
+          <button onClick={() => setError('')} className="text-red-400 hover:text-red-650">
             <X size={16} />
           </button>
         </div>
       )}
 
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-white">Menu Sections</h2>
+        <h2 className="text-2xl font-bold text-[#1C1917]">Menu Sections</h2>
         <button
           onClick={() => handleOpenCatModal()}
-          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-semibold transition-all shadow-md"
+          className="flex items-center gap-2 px-4 py-2.5 bg-[#5E6F58] hover:bg-[#4E5D49] text-white rounded-xl text-xs font-bold transition-all shadow-sm"
         >
           <Plus size={16} />
           Add Section
@@ -253,109 +247,109 @@ export default function MenuBuilder({ restaurantId }: MenuBuilderProps) {
       </div>
 
       {categories.length === 0 ? (
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-12 text-center text-slate-400">
-          <p className="text-lg">No menu categories created yet.</p>
-          <p className="text-sm text-slate-500 mt-2">Get started by adding your first menu section (e.g. Starters).</p>
+        <div className="bg-white border border-[#EAE8E4] rounded-2xl p-12 text-center text-[#7A7571]">
+          <p className="text-base font-bold text-[#1C1917]">No categories created yet.</p>
+          <p className="text-xs mt-2">Get started by adding your first menu section (e.g. Starters).</p>
         </div>
       ) : (
         <div className="space-y-8">
           {categories.map((category) => (
-            <div key={category.id} className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-sm space-y-4">
-              <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+            <div key={category.id} className="bg-white border border-[#EAE8E4] rounded-2xl p-6 shadow-[0_4px_20px_rgb(28,25,23,0.01)] space-y-4">
+              <div className="flex justify-between items-center border-b border-[#EAE8E4] pb-3">
                 <div className="flex items-center gap-2">
-                  <h3 className="text-lg font-bold text-white">{category.name}</h3>
-                  <span className="text-xs text-slate-500 font-mono">(Order: {category.displayOrder})</span>
+                  <h3 className="text-lg font-bold text-[#1C1917]">{category.name}</h3>
+                  <span className="text-[10px] text-slate-400 font-mono">(Order: {category.displayOrder})</span>
                 </div>
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1">
                   <button
                     onClick={() => handleOpenCatModal(category)}
-                    className="p-2 text-slate-400 hover:text-indigo-400 hover:bg-slate-800 rounded-lg transition-all"
+                    className="p-1.5 text-[#7A7571] hover:text-[#1C1917] hover:bg-[#F6F4F0] rounded-lg transition-all"
                     title="Edit Category Name"
                   >
-                    <Edit2 size={16} />
+                    <Edit2 size={15} />
                   </button>
                   <button
                     onClick={() => handleDeleteCategory(category.id)}
-                    className="p-2 text-slate-400 hover:text-red-400 hover:bg-slate-800 rounded-lg transition-all"
+                    className="p-1.5 text-[#7A7571] hover:text-red-600 hover:bg-[#F6F4F0] rounded-lg transition-all"
                     title="Delete Category"
                   >
-                    <Trash2 size={16} />
+                    <Trash2 size={15} />
                   </button>
                   <button
                     onClick={() => handleOpenItemModal(category.id)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600/10 hover:bg-indigo-600 text-indigo-300 hover:text-white rounded-lg text-xs font-semibold ml-2 transition-all"
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-[#5E6F58]/10 hover:bg-[#5E6F58] text-[#5E6F58] hover:text-white rounded-lg text-[10px] font-bold ml-2 transition-all"
                   >
-                    <Plus size={14} />
+                    <Plus size={12} />
                     Add Item
                   </button>
                 </div>
               </div>
 
               {category.items.length === 0 ? (
-                <p className="text-sm text-slate-500 italic py-2">No items in this section.</p>
+                <p className="text-xs text-[#7A7571] italic py-2">No items in this section.</p>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {category.items.map((item) => (
                     <div
                       key={item.id}
-                      className={`flex gap-4 p-4 rounded-xl border transition-all ${
+                      className={`flex gap-4 p-4 rounded-2xl border transition-all ${
                         item.isAvailable
-                          ? 'bg-slate-950/60 border-slate-800/80 hover:border-slate-700'
-                          : 'bg-slate-950/20 border-slate-900 opacity-60'
+                          ? 'bg-[#FBFBFA] border-[#EAE8E4] hover:border-[#D5D2CC]'
+                          : 'bg-[#FAF9F5]/40 border-[#EAE8E4]/60 opacity-60'
                       }`}
                     >
                       {item.imageUrl && (
                         <img
                           src={`${API_BASE_URL}${item.imageUrl}`}
                           alt={item.name}
-                          className="w-20 h-20 object-cover rounded-lg bg-slate-900 border border-slate-800 shrink-0"
+                          className="w-20 h-20 object-cover rounded-xl bg-[#F6F4F0] border border-[#E5E2DC] shrink-0"
                         />
                       )}
                       <div className="flex-1 space-y-1">
                         <div className="flex items-start justify-between gap-2">
-                          <h4 className="font-bold text-white text-base leading-tight">{item.name}</h4>
-                          <span className="text-sm font-semibold text-indigo-400 font-mono shrink-0">
+                          <h4 className="font-bold text-[#1C1917] text-sm leading-tight">{item.name}</h4>
+                          <span className="text-sm font-bold text-[#5E6F58] font-mono shrink-0">
                             ${parseFloat(item.price).toFixed(2)}
                           </span>
                         </div>
-                        <p className="text-xs text-slate-400 line-clamp-2 h-8">{item.description || 'No description.'}</p>
+                        <p className="text-xs text-[#7A7571] line-clamp-2 h-8">{item.description || 'No description.'}</p>
                         
                         <div className="flex items-center justify-between pt-2">
                           <div className="flex items-center gap-2">
                             <span
-                              className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
+                              className={`text-[9px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider ${
                                 item.isVeg
-                                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                                  : 'bg-red-500/10 text-red-400 border border-red-500/20'
+                                  ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20'
+                                  : 'bg-red-500/10 text-red-600 border border-red-500/20'
                               }`}
                             >
                               {item.isVeg ? 'Veg' : 'Non-Veg'}
                             </span>
-                            <span className="text-[10px] text-slate-500 font-mono">Order: {item.displayOrder}</span>
+                            <span className="text-[9px] text-slate-400 font-mono">Order: {item.displayOrder}</span>
                           </div>
 
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-0.5">
                             <button
                               onClick={() => handleToggleItemAvailability(item)}
                               className={`p-1.5 rounded-lg border transition-all ${
                                 item.isAvailable
-                                  ? 'text-emerald-400 hover:text-emerald-300 bg-emerald-500/5 border-emerald-500/10'
-                                  : 'text-slate-500 hover:text-slate-400 bg-slate-800/5 border-slate-800'
+                                  ? 'text-emerald-600 hover:text-emerald-700 bg-emerald-500/5 border-emerald-500/10'
+                                  : 'text-slate-400 hover:text-slate-500 bg-slate-100 border-slate-200'
                               }`}
-                              title={item.isAvailable ? 'Mark Unavailable' : 'Mark Available'}
+                              title={item.isAvailable ? 'Mark Out of Stock' : 'Mark In Stock'}
                             >
                               {item.isAvailable ? <Eye size={14} /> : <EyeOff size={14} />}
                             </button>
                             <button
                               onClick={() => handleOpenItemModal(category.id, item)}
-                              className="p-1.5 text-slate-400 hover:text-indigo-400 hover:bg-slate-800 rounded-lg transition-all"
+                              className="p-1.5 text-[#7A7571] hover:text-[#5E6F58] hover:bg-[#FAF9F5] rounded-lg transition-all"
                               title="Edit Item"
                             >
                               <Edit2 size={14} />
                             </button>
                             <button
                               onClick={() => handleDeleteItem(item.id)}
-                              className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-slate-800 rounded-lg transition-all"
+                              className="p-1.5 text-[#7A7571] hover:text-red-600 hover:bg-[#FAF9F5] rounded-lg transition-all"
                               title="Delete Item"
                             >
                               <Trash2 size={14} />
@@ -374,52 +368,52 @@ export default function MenuBuilder({ restaurantId }: MenuBuilderProps) {
 
       {/* --- Category Modal --- */}
       {catModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
-            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
-              <h3 className="text-lg font-bold text-white">{editingCategory ? 'Edit Section' : 'Add Menu Section'}</h3>
-              <button onClick={() => setCatModalOpen(false)} className="text-slate-400 hover:text-white">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white border border-[#EAE8E4] rounded-2xl p-6 max-w-md w-full shadow-xl space-y-4">
+            <div className="flex justify-between items-center border-b border-[#EAE8E4] pb-3">
+              <h3 className="text-base font-bold text-[#1C1917]">{editingCategory ? 'Edit Section' : 'Add Menu Section'}</h3>
+              <button onClick={() => setCatModalOpen(false)} className="text-slate-400 hover:text-[#1C1917]">
                 <X size={20} />
               </button>
             </div>
 
             <form onSubmit={handleSaveCategory} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-300">Section Name</label>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-[#7A7571]">Section Name</label>
                 <input
                   type="text"
                   required
                   value={catName}
                   onChange={(e) => setCatName(e.target.value)}
-                  className="mt-1 block w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm transition-all"
-                  placeholder="e.g. Starters, Main Course, Drinks"
+                  className="mt-2 block w-full px-4 py-2.5 bg-[#F6F4F0] border border-[#E5E2DC] rounded-xl text-[#1C1917] focus:outline-none focus:ring-1 focus:ring-[#5E6F58] focus:border-[#5E6F58] text-sm transition-all"
+                  placeholder="e.g. Starters, Mains, Desserts"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-300">Display Order</label>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-[#7A7571]">Display Order</label>
                 <input
                   type="number"
                   required
                   value={catOrder}
                   onChange={(e) => setCatOrder(parseInt(e.target.value) || 0)}
-                  className="mt-1 block w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm transition-all"
+                  className="mt-2 block w-full px-4 py-2.5 bg-[#F6F4F0] border border-[#E5E2DC] rounded-xl text-[#1C1917] focus:outline-none focus:ring-1 focus:ring-[#5E6F58] focus:border-[#5E6F58] text-sm transition-all"
                 />
-                <p className="text-[10px] text-slate-500 mt-1">Lower numbers are shown first</p>
+                <p className="text-[10px] text-slate-400 mt-1">Lower numbers are shown first</p>
               </div>
 
               <div className="pt-2 flex justify-end gap-3">
                 <button
                   type="button"
                   onClick={() => setCatModalOpen(false)}
-                  className="px-4 py-2 border border-slate-800 text-slate-300 rounded-xl text-sm font-semibold hover:bg-slate-850"
+                  className="px-4 py-2 border border-[#EAE8E4] text-[#7A7571] rounded-xl text-xs font-bold hover:bg-[#F6F4F0]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-sm font-semibold transition-all disabled:opacity-50"
+                  className="flex items-center gap-2 px-4 py-2 bg-[#5E6F58] hover:bg-[#4E5D49] text-white rounded-xl text-xs font-bold transition-all disabled:opacity-50"
                 >
                   {submitting && <Loader2 className="animate-spin" size={16} />}
                   Save Section
@@ -432,11 +426,11 @@ export default function MenuBuilder({ restaurantId }: MenuBuilderProps) {
 
       {/* --- Item Modal --- */}
       {itemModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-4 my-8">
-            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
-              <h3 className="text-lg font-bold text-white">{editingItem ? 'Edit Menu Item' : 'Add Menu Item'}</h3>
-              <button onClick={() => setItemModalOpen(false)} className="text-slate-400 hover:text-white">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="bg-white border border-[#EAE8E4] rounded-2xl p-6 max-w-lg w-full shadow-xl space-y-4 my-8">
+            <div className="flex justify-between items-center border-b border-[#EAE8E4] pb-3">
+              <h3 className="text-base font-bold text-[#1C1917]">{editingItem ? 'Edit Menu Item' : 'Add Menu Item'}</h3>
+              <button onClick={() => setItemModalOpen(false)} className="text-slate-400 hover:text-[#1C1917]">
                 <X size={20} />
               </button>
             </div>
@@ -444,62 +438,62 @@ export default function MenuBuilder({ restaurantId }: MenuBuilderProps) {
             <form onSubmit={handleSaveItem} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-slate-300">Item Name</label>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-[#7A7571]">Item Name</label>
                   <input
                     type="text"
                     required
                     value={itemName}
                     onChange={(e) => setItemName(e.target.value)}
-                    className="mt-1 block w-full px-4 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm transition-all"
+                    className="mt-2 block w-full px-4 py-2 bg-[#F6F4F0] border border-[#E5E2DC] rounded-xl text-[#1C1917] focus:outline-none focus:ring-1 focus:ring-[#5E6F58] focus:border-[#5E6F58] text-sm transition-all"
                     placeholder="e.g. Classic Margherita Pizza"
                   />
                 </div>
 
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-slate-300">Description</label>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-[#7A7571]">Description</label>
                   <textarea
                     rows={2}
                     value={itemDesc}
                     onChange={(e) => setItemDesc(e.target.value)}
-                    className="mt-1 block w-full px-4 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm transition-all"
-                    placeholder="Describe flavor notes, portions, or allergies..."
+                    className="mt-2 block w-full px-4 py-2 bg-[#F6F4F0] border border-[#E5E2DC] rounded-xl text-[#1C1917] focus:outline-none focus:ring-1 focus:ring-[#5E6F58] focus:border-[#5E6F58] text-sm transition-all"
+                    placeholder="Describe ingredients or portion sizes..."
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-300">Price ($)</label>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-[#7A7571]">Price ($)</label>
                   <input
                     type="number"
                     step="0.01"
                     required
                     value={itemPrice}
                     onChange={(e) => setItemPrice(e.target.value)}
-                    className="mt-1 block w-full px-4 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm transition-all"
+                    className="mt-2 block w-full px-4 py-2 bg-[#F6F4F0] border border-[#E5E2DC] rounded-xl text-[#1C1917] focus:outline-none focus:ring-1 focus:ring-[#5E6F58] focus:border-[#5E6F58] text-sm transition-all"
                     placeholder="9.99"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-300">Display Order</label>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-[#7A7571]">Display Order</label>
                   <input
                     type="number"
                     required
                     value={itemOrder}
                     onChange={(e) => setItemOrder(parseInt(e.target.value) || 0)}
-                    className="mt-1 block w-full px-4 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm transition-all"
+                    className="mt-2 block w-full px-4 py-2 bg-[#F6F4F0] border border-[#E5E2DC] rounded-xl text-[#1C1917] focus:outline-none focus:ring-1 focus:ring-[#5E6F58] focus:border-[#5E6F58] text-sm transition-all"
                   />
                 </div>
 
-                <div className="flex items-center gap-4 bg-slate-950 border border-slate-800 px-4 py-2 rounded-xl">
-                  <span className="text-sm font-medium text-slate-300">Dietary Style</span>
+                <div className="flex items-center gap-4 bg-[#F6F4F0] border border-[#E5E2DC] px-4 py-2 rounded-xl">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-[#7A7571]">Style</span>
                   <div className="flex items-center gap-1.5 ml-auto">
                     <button
                       type="button"
                       onClick={() => setItemVeg(true)}
                       className={`text-xs px-2.5 py-1 rounded-lg font-bold border transition-all ${
                         itemVeg
-                          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-sm'
-                          : 'text-slate-500 border-transparent'
+                          ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
+                          : 'text-slate-400 border-transparent'
                       }`}
                     >
                       Veg
@@ -509,8 +503,8 @@ export default function MenuBuilder({ restaurantId }: MenuBuilderProps) {
                       onClick={() => setItemVeg(false)}
                       className={`text-xs px-2.5 py-1 rounded-lg font-bold border transition-all ${
                         !itemVeg
-                          ? 'bg-red-500/10 text-red-400 border-red-500/20 shadow-sm'
-                          : 'text-slate-500 border-transparent'
+                          ? 'bg-red-500/10 text-red-600 border-red-500/20'
+                          : 'text-slate-400 border-transparent'
                       }`}
                     >
                       Non-Veg
@@ -518,15 +512,15 @@ export default function MenuBuilder({ restaurantId }: MenuBuilderProps) {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-4 bg-slate-950 border border-slate-800 px-4 py-2 rounded-xl">
-                  <span className="text-sm font-medium text-slate-300">Availability</span>
+                <div className="flex items-center gap-4 bg-[#F6F4F0] border border-[#E5E2DC] px-4 py-2 rounded-xl">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-[#7A7571]">Status</span>
                   <button
                     type="button"
                     onClick={() => setItemAvailable(!itemAvailable)}
                     className={`ml-auto text-xs px-2.5 py-1 rounded-lg font-bold border transition-all ${
                       itemAvailable
-                        ? 'bg-indigo-600/10 text-indigo-400 border-indigo-500/20'
-                        : 'bg-slate-800 text-slate-500 border-slate-700'
+                        ? 'bg-[#5E6F58]/10 text-[#5E6F58] border-[#5E6F58]/20'
+                        : 'bg-slate-200 text-slate-400 border-transparent'
                     }`}
                   >
                     {itemAvailable ? 'In Stock' : 'Out of Stock'}
@@ -534,16 +528,16 @@ export default function MenuBuilder({ restaurantId }: MenuBuilderProps) {
                 </div>
 
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-slate-300 mb-1">Item Image</label>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-[#7A7571] mb-1">Item Image</label>
                   <div className="flex items-center gap-4">
-                    <div className="relative w-16 h-16 rounded-xl border border-slate-800 bg-slate-950 flex items-center justify-center overflow-hidden shrink-0">
+                    <div className="relative w-16 h-16 rounded-xl border border-[#E5E2DC] bg-[#F6F4F0] flex items-center justify-center overflow-hidden shrink-0">
                       {imagePreview ? (
                         <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
                       ) : (
-                        <Camera className="text-slate-600" size={24} />
+                        <Camera className="text-slate-400" size={24} />
                       )}
                     </div>
-                    <label className="flex-1 cursor-pointer flex items-center justify-center border border-dashed border-slate-800 hover:border-indigo-500/50 bg-slate-950 py-3 rounded-xl hover:bg-slate-850 transition-all text-xs font-semibold text-slate-400 hover:text-white">
+                    <label className="flex-1 cursor-pointer flex items-center justify-center border border-dashed border-[#E5E2DC] hover:border-[#5E6F58]/50 bg-[#F6F4F0] py-3 rounded-xl hover:bg-[#EAE8E4] transition-all text-xs font-bold text-[#7A7571] hover:text-[#1C1917]">
                       <span>Upload Image</span>
                       <input type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
                     </label>
@@ -551,18 +545,18 @@ export default function MenuBuilder({ restaurantId }: MenuBuilderProps) {
                 </div>
               </div>
 
-              <div className="pt-2 flex justify-end gap-3 border-t border-slate-800">
+              <div className="pt-2 flex justify-end gap-3 border-t border-[#EAE8E4]">
                 <button
                   type="button"
                   onClick={() => setItemModalOpen(false)}
-                  className="px-4 py-2 border border-slate-800 text-slate-300 rounded-xl text-sm font-semibold hover:bg-slate-850"
+                  className="px-4 py-2 border border-[#EAE8E4] text-[#7A7571] rounded-xl text-xs font-bold hover:bg-[#F6F4F0]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-sm font-semibold transition-all disabled:opacity-50"
+                  className="flex items-center gap-2 px-4 py-2 bg-[#5E6F58] hover:bg-[#4E5D49] text-white rounded-xl text-xs font-bold transition-all disabled:opacity-50"
                 >
                   {submitting && <Loader2 className="animate-spin" size={16} />}
                   Save Menu Item

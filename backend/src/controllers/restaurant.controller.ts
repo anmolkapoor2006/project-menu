@@ -1,16 +1,16 @@
 import { Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../prisma';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
 import QRCode from 'qrcode';
 import { z } from 'zod';
-
-const prisma = new PrismaClient();
+import { uploadToCloudinary } from '../utils/cloudinary';
 
 const updateRestaurantSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters').optional(),
   address: z.string().optional(),
   contactNumber: z.string().optional(),
   isActive: z.boolean().optional(),
+  isAcceptingOrders: z.boolean().optional(),
 });
 
 export async function updateRestaurant(req: AuthenticatedRequest, res: Response) {
@@ -23,7 +23,7 @@ export async function updateRestaurant(req: AuthenticatedRequest, res: Response)
     }
 
     const body = updateRestaurantSchema.parse(req.body);
-    const logoUrl = req.file ? `/uploads/${req.file.filename}` : undefined;
+    const logoUrl = req.file ? await uploadToCloudinary(req.file.path) : undefined;
 
     const existing = await prisma.restaurant.findUnique({ where: { id } });
     if (!existing) {
@@ -67,7 +67,20 @@ export async function getQRCode(req: AuthenticatedRequest, res: Response) {
       return res.status(404).json({ error: 'Restaurant not found' });
     }
 
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    let frontendUrl = process.env.FRONTEND_URL;
+    if (!frontendUrl && req.headers.origin) {
+      frontendUrl = req.headers.origin;
+    }
+    if (!frontendUrl && req.headers.referer) {
+      try {
+        const parsed = new URL(req.headers.referer);
+        frontendUrl = `${parsed.protocol}//${parsed.host}`;
+      } catch (e) {}
+    }
+    if (!frontendUrl) {
+      frontendUrl = 'https://frontend-mu-ten-8hvvtrvr8z.vercel.app';
+    }
+    frontendUrl = frontendUrl.replace(/\/$/, '');
     const publicUrl = `${frontendUrl}/menu/${restaurant.slug}?src=qr`;
 
     const qrDataUrl = await QRCode.toDataURL(publicUrl, {
@@ -83,6 +96,29 @@ export async function getQRCode(req: AuthenticatedRequest, res: Response) {
       qrCodeUrl: qrDataUrl,
       publicUrl,
     });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+export async function deleteRestaurant(req: AuthenticatedRequest, res: Response) {
+  try {
+    const { id } = req.params;
+
+    if (!req.user || req.user.role !== 'SUPER_ADMIN') {
+      return res.status(403).json({ error: 'Only Super Admin can delete restaurant accounts' });
+    }
+
+    const restaurant = await prisma.restaurant.findUnique({ where: { id } });
+    if (!restaurant) {
+      return res.status(404).json({ error: 'Restaurant not found' });
+    }
+
+    // Delete restaurant & cascading records
+    await prisma.restaurant.delete({ where: { id } });
+
+    return res.json({ message: 'Restaurant account deleted successfully' });
   } catch (error) {
     console.error(error);
     return res.status(500).json({ error: 'Internal server error' });

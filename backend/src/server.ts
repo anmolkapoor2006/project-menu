@@ -3,14 +3,14 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
 import http from 'http';
-import { PrismaClient } from '@prisma/client';
+import prisma from './prisma';
 
 // Socket.io initialization
 import { initSocket } from './io';
 
 // Controller imports
 import { register, login, me } from './controllers/auth.controller';
-import { updateRestaurant, getQRCode } from './controllers/restaurant.controller';
+import { updateRestaurant, getQRCode, deleteRestaurant } from './controllers/restaurant.controller';
 import {
   createCategory,
   updateCategory,
@@ -18,8 +18,9 @@ import {
   createMenuItem,
   updateMenuItem,
   deleteMenuItem,
+  getRestaurantFullMenu,
 } from './controllers/menu.controller';
-import { getPublicMenu, logViewEvent } from './controllers/public.controller';
+import { getPublicMenu, logViewEvent, callStaff } from './controllers/public.controller';
 import { placeOrder, getOrders, updateOrderStatus } from './controllers/order.controller';
 import { getRestaurantAnalytics, getPlatformAnalytics } from './controllers/analytics.controller';
 
@@ -32,23 +33,10 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
-const prisma = new PrismaClient();
 
 // Configure CORS
-const allowedOrigins = [
-  'http://localhost:5173',
-  'http://127.0.0.1:5173',
-  FRONTEND_URL
-];
-
 app.use(cors({
-  origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+  origin: true,
   credentials: true,
 }));
 
@@ -67,14 +55,23 @@ app.get('/health', async (req, res) => {
   }
 });
 
+// Public Menu Access
+app.get('/api/public/menu/:slug', getPublicMenu);
+app.post('/api/public/menu/:slug/view-event', logViewEvent);
+app.post('/api/public/menu/:slug/call-staff', callStaff);
+
+import { orderLimiter, authLimiter } from './middleware/rateLimit.middleware';
+
 // Authentication
 app.post('/api/auth/register', register);
-app.post('/api/auth/login', login);
+app.post('/api/auth/login', authLimiter, login);
 app.get('/api/auth/me', authenticateToken, me);
 
-// Restaurant Profile & QR
+// Restaurant Profile, QR & Full Menu
 app.put('/api/restaurants/:id', authenticateToken, upload.single('logo'), updateRestaurant);
 app.get('/api/restaurants/:id/qrcode', authenticateToken, getQRCode);
+app.delete('/api/restaurants/:id', authenticateToken, deleteRestaurant);
+app.get('/api/restaurants/:id/full-menu', authenticateToken, getRestaurantFullMenu);
 
 // Categories
 app.post('/api/restaurants/:id/categories', authenticateToken, createCategory);
@@ -87,7 +84,7 @@ app.put('/api/items/:id', authenticateToken, upload.single('image'), updateMenuI
 app.delete('/api/items/:id', authenticateToken, deleteMenuItem);
 
 // Orders
-app.post('/api/public/menu/:slug/order', placeOrder);
+app.post('/api/public/menu/:slug/order', orderLimiter, placeOrder);
 app.get('/api/restaurants/:id/orders', authenticateToken, getOrders);
 app.put('/api/orders/:id/status', authenticateToken, updateOrderStatus);
 
@@ -95,9 +92,12 @@ app.put('/api/orders/:id/status', authenticateToken, updateOrderStatus);
 app.get('/api/restaurants/:id/analytics', authenticateToken, getRestaurantAnalytics);
 app.get('/api/admin/analytics/platform', authenticateToken, getPlatformAnalytics);
 
-// Public Menu Access
-app.get('/api/public/menu/:slug', getPublicMenu);
-app.post('/api/public/menu/:slug/view-event', logViewEvent);
+import { createAnnouncement, getActiveAnnouncement, deleteAnnouncement } from './controllers/announcement.controller';
+
+// Announcements / Broadcasts
+app.get('/api/public/announcement', getActiveAnnouncement);
+app.post('/api/admin/announcements', authenticateToken, createAnnouncement);
+app.delete('/api/admin/announcements/:id', authenticateToken, deleteAnnouncement);
 
 // Global Error Handler
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -109,6 +109,10 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 const server = http.createServer(app);
 initSocket(server, FRONTEND_URL);
 
-server.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-});
+if (process.env.VERCEL !== '1') {
+  server.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+  });
+}
+
+export default app;

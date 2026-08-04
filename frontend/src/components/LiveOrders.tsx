@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import io from 'socket.io-client';
 import api from '../api/api';
-import { Play, Check, X, Loader2, Volume2 } from 'lucide-react';
+import { Play, Check, X, Loader2, Volume2, Bell } from 'lucide-react';
 
 interface OrderItem {
   id: string;
@@ -27,6 +27,7 @@ interface LiveOrdersProps {
 
 export default function LiveOrders({ restaurantId }: LiveOrdersProps) {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [staffCalls, setStaffCalls] = useState<{ tableNumber: string; requestType: string; timestamp: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [audioEnabled, setAudioEnabled] = useState(true);
@@ -37,6 +38,9 @@ export default function LiveOrders({ restaurantId }: LiveOrdersProps) {
     if (!audioEnabled) return;
     try {
       const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      if (ctx.state === 'suspended') {
+        ctx.resume();
+      }
       const beep = (timeOffset: number) => {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
@@ -87,16 +91,29 @@ export default function LiveOrders({ restaurantId }: LiveOrdersProps) {
       );
     });
 
+    socket.on('staff_call', (data: { tableNumber: string; requestType: string; timestamp: string }) => {
+      setStaffCalls((prev) => [data, ...prev]);
+      playBeep();
+    });
+
     return () => {
       socket.disconnect();
     };
   }, [restaurantId]);
 
   const handleUpdateStatus = async (orderId: string, nextStatus: 'PREPARING' | 'SERVED' | 'CANCELLED') => {
+    const prevOrders = [...orders];
+    // Optimistic UI update - instantly update local state!
+    setOrders((current) =>
+      current.map((o) => (o.id === orderId ? { ...o, status: nextStatus } : o))
+    );
+
     try {
       await api.put(`/api/orders/${orderId}/status`, { status: nextStatus });
     } catch (err) {
       console.error('Failed to update status', err);
+      // Revert if error
+      setOrders(prevOrders);
       alert('Could not update order status.');
     }
   };
@@ -139,6 +156,27 @@ export default function LiveOrders({ restaurantId }: LiveOrdersProps) {
           {audioEnabled ? 'Sound On' : 'Muted'}
         </button>
       </div>
+
+      {/* Real-time Waiter & Water Call Alert Banners */}
+      {staffCalls.length > 0 && (
+        <div className="space-y-2">
+          {staffCalls.slice(0, 3).map((call, idx) => (
+            <div key={idx} className="bg-amber-500/10 border border-amber-500/30 text-amber-900 px-4 py-3 rounded-2xl flex items-center justify-between text-xs animate-bounce shadow-sm">
+              <div className="flex items-center gap-2">
+                <Bell size={18} className="text-amber-700 shrink-0" />
+                <span className="font-bold">Table {call.tableNumber}:</span>
+                <span>{call.requestType} requested!</span>
+              </div>
+              <button
+                onClick={() => setStaffCalls((prev) => prev.filter((_, i) => i !== idx))}
+                className="text-[10px] font-bold text-amber-800 bg-amber-500/20 px-2 py-0.5 rounded-lg hover:bg-amber-500/30"
+              >
+                Dismiss
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Grid of active orders */}
       <div>

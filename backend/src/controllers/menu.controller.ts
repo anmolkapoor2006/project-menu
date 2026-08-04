@@ -1,9 +1,8 @@
 import { Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../prisma';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
 import { z } from 'zod';
-
-const prisma = new PrismaClient();
+import { uploadToCloudinary } from '../utils/cloudinary';
 
 const categorySchema = z.object({
   name: z.string().min(1, 'Category name is required'),
@@ -16,6 +15,8 @@ const itemSchema = z.object({
   price: z.preprocess((val) => Number(val), z.number().positive('Price must be greater than 0')),
   isVeg: z.preprocess((val) => val === 'true' || val === true, z.boolean().default(true)),
   isAvailable: z.preprocess((val) => val === 'true' || val === true, z.boolean().default(true)),
+  badge: z.string().optional().nullable(),
+  prepTime: z.string().optional().nullable(),
   displayOrder: z.preprocess((val) => Number(val), z.number().int().default(0)),
 });
 
@@ -52,7 +53,6 @@ export async function createCategory(req: AuthenticatedRequest, res: Response) {
 export async function updateCategory(req: AuthenticatedRequest, res: Response) {
   try {
     const { id } = req.params;
-    const body = categorySchema.parse(req.body);
 
     const existing = await prisma.menuCategory.findUnique({ where: { id } });
     if (!existing) {
@@ -63,7 +63,9 @@ export async function updateCategory(req: AuthenticatedRequest, res: Response) {
       return res.status(403).json({ error: 'Not authorized to modify this category' });
     }
 
-    const updated = await prisma.menuCategory.update({
+    const body = categorySchema.parse(req.body);
+
+    const category = await prisma.menuCategory.update({
       where: { id },
       data: {
         name: body.name,
@@ -71,7 +73,7 @@ export async function updateCategory(req: AuthenticatedRequest, res: Response) {
       },
     });
 
-    return res.json({ message: 'Category updated successfully', category: updated });
+    return res.json({ message: 'Category updated successfully', category });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: error.errors[0].message });
@@ -119,7 +121,7 @@ export async function createMenuItem(req: AuthenticatedRequest, res: Response) {
     }
 
     const body = itemSchema.parse(req.body);
-    const imageUrl = req.file ? `/uploads/${req.file.filename}` : undefined;
+    const imageUrl = req.file ? await uploadToCloudinary(req.file.path) : undefined;
 
     const menuItem = await prisma.menuItem.create({
       data: {
@@ -129,6 +131,8 @@ export async function createMenuItem(req: AuthenticatedRequest, res: Response) {
         price: body.price,
         isVeg: body.isVeg,
         isAvailable: body.isAvailable,
+        badge: body.badge || null,
+        prepTime: body.prepTime || null,
         displayOrder: body.displayOrder,
         imageUrl,
       },
@@ -147,33 +151,42 @@ export async function createMenuItem(req: AuthenticatedRequest, res: Response) {
 export async function updateMenuItem(req: AuthenticatedRequest, res: Response) {
   try {
     const { id } = req.params;
-    const body = itemSchema.partial().parse(req.body);
 
     const existing = await prisma.menuItem.findUnique({
       where: { id },
-      include: { category: true },
+      include: { category: true }
     });
+
     if (!existing) {
       return res.status(404).json({ error: 'Menu item not found' });
     }
 
     if (!req.user || (req.user.role !== 'SUPER_ADMIN' && req.user.restaurantId !== existing.category.restaurantId)) {
-      return res.status(403).json({ error: 'Not authorized to modify this menu item' });
+      return res.status(403).json({ error: 'Not authorized to modify this item' });
     }
 
-    const imageUrl = req.file ? `/uploads/${req.file.filename}` : undefined;
-
-    const updateData: any = { ...body };
-    if (imageUrl) {
-      updateData.imageUrl = imageUrl;
+    const body = itemSchema.partial().parse(req.body);
+    let imageUrl = existing.imageUrl;
+    if (req.file) {
+      imageUrl = await uploadToCloudinary(req.file.path);
     }
 
-    const updated = await prisma.menuItem.update({
+    const menuItem = await prisma.menuItem.update({
       where: { id },
-      data: updateData,
+      data: {
+        ...(body.name !== undefined && { name: body.name }),
+        ...(body.description !== undefined && { description: body.description }),
+        ...(body.price !== undefined && { price: body.price }),
+        ...(body.isVeg !== undefined && { isVeg: body.isVeg }),
+        ...(body.isAvailable !== undefined && { isAvailable: body.isAvailable }),
+        ...(body.badge !== undefined && { badge: body.badge }),
+        ...(body.prepTime !== undefined && { prepTime: body.prepTime }),
+        ...(body.displayOrder !== undefined && { displayOrder: body.displayOrder }),
+        imageUrl,
+      },
     });
 
-    return res.json({ message: 'Menu item updated successfully', item: updated });
+    return res.json({ message: 'Menu item updated successfully', item: menuItem });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: error.errors[0].message });
@@ -202,6 +215,31 @@ export async function deleteMenuItem(req: AuthenticatedRequest, res: Response) {
     await prisma.menuItem.delete({ where: { id } });
 
     return res.json({ message: 'Menu item deleted successfully' });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+export async function getRestaurantFullMenu(req: AuthenticatedRequest, res: Response) {
+  try {
+    const { id } = req.params;
+
+    if (!req.user || (req.user.role !== 'SUPER_ADMIN' && req.user.restaurantId !== id)) {
+      return res.status(403).json({ error: 'Not authorized to view menu management' });
+    }
+
+    const categories = await prisma.menuCategory.findMany({
+      where: { restaurantId: id },
+      orderBy: { displayOrder: 'asc' },
+      include: {
+        items: {
+          orderBy: { displayOrder: 'asc' },
+        },
+      },
+    });
+
+    return res.json({ categories });
   } catch (error) {
     console.error(error);
     return res.status(500).json({ error: 'Internal server error' });

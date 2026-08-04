@@ -1,10 +1,9 @@
 import { Request, Response } from 'express';
-import { PrismaClient, OrderStatus } from '@prisma/client';
+import { OrderStatus } from '@prisma/client';
+import prisma from '../prisma';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
 import { getIO } from '../io';
 import { z } from 'zod';
-
-const prisma = new PrismaClient();
 
 const orderItemInputSchema = z.object({
   menuItemId: z.string().uuid(),
@@ -32,6 +31,10 @@ export async function placeOrder(req: Request, res: Response) {
 
     if (!restaurant) {
       return res.status(404).json({ error: 'Restaurant not found' });
+    }
+
+    if (!restaurant.isAcceptingOrders) {
+      return res.status(400).json({ error: 'The kitchen is currently paused and not accepting new orders right now. Please speak to staff.' });
     }
 
     // Fetch the menu items from the DB to get official prices

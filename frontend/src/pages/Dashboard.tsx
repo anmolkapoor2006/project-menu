@@ -5,7 +5,7 @@ import QRSection from '../components/QRSection';
 import MenuBuilder from './MenuBuilder';
 import LiveOrders from '../components/LiveOrders';
 import AnalyticsView from '../components/AnalyticsView';
-import { Store, UtensilsCrossed, ClipboardList, BarChart3, LogOut, Camera, Loader2, Save, Settings } from 'lucide-react';
+import { Store, UtensilsCrossed, ClipboardList, BarChart3, LogOut, Camera, Loader2, Save, Settings, Megaphone } from 'lucide-react';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -13,6 +13,7 @@ export default function Dashboard() {
   
   const [user, setUser] = useState<any>({});
   const [restaurant, setRestaurant] = useState<any>({});
+  const [announcement, setAnnouncement] = useState<any>(null);
 
   // Profile Edit State
   const [editingProfile, setEditingProfile] = useState(false);
@@ -21,26 +22,59 @@ export default function Dashboard() {
   const [restContact, setRestContact] = useState('');
   const [restLogo, setRestLogo] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [logoError, setLogoError] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileError, setProfileError] = useState('');
 
   const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
   useEffect(() => {
-    const userJson = localStorage.getItem('user');
-    const restJson = localStorage.getItem('restaurant');
-    
-    if (userJson) setUser(JSON.parse(userJson));
-    if (restJson) {
-      const rest = JSON.parse(restJson);
-      setRestaurant(rest);
-      setRestName(rest.name || '');
-      setRestAddress(rest.address || '');
-      setRestContact(rest.contactNumber || '');
-      if (rest.logoUrl) {
-        setLogoPreview(`${API_BASE_URL}${rest.logoUrl}`);
+    const fetchMe = async () => {
+      try {
+        const response = await api.get('/api/auth/me');
+        if (response.data.user) {
+          setUser(response.data.user);
+          localStorage.setItem('user', JSON.stringify(response.data.user));
+        }
+        if (response.data.restaurant) {
+          const rest = response.data.restaurant;
+          setRestaurant(rest);
+          localStorage.setItem('restaurant', JSON.stringify(rest));
+          setRestName(rest.name || '');
+          setRestAddress(rest.address || '');
+          setRestContact(rest.contactNumber || '');
+          if (rest.logoUrl) {
+            setLogoPreview(rest.logoUrl.startsWith('http') ? rest.logoUrl : `${API_BASE_URL}${rest.logoUrl}`);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch profile', err);
+        const userJson = localStorage.getItem('user');
+        const restJson = localStorage.getItem('restaurant');
+        if (userJson) setUser(JSON.parse(userJson));
+        if (restJson) {
+          const rest = JSON.parse(restJson);
+          setRestaurant(rest);
+          setRestName(rest.name || '');
+          setRestAddress(rest.address || '');
+          setRestContact(rest.contactNumber || '');
+        }
       }
-    }
+    };
+
+    const fetchAnnouncement = async () => {
+      try {
+        const res = await api.get('/api/public/announcement');
+        if (res.data.announcement) {
+          setAnnouncement(res.data.announcement);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    };
+
+    fetchMe();
+    fetchAnnouncement();
   }, []);
 
   const handleLogout = () => {
@@ -142,6 +176,46 @@ export default function Dashboard() {
               Analytics
             </button>
           </nav>
+
+          {/* Kitchen Orders Toggle */}
+          <div className="pt-4 border-t border-[#EAE8E4]">
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-[#7A7571] mb-2">
+              Kitchen Status
+            </label>
+            <button
+              type="button"
+              onClick={async () => {
+                const previousState = restaurant.isAcceptingOrders ?? true;
+                const nextState = !previousState;
+                // Instant 0ms Optimistic UI update
+                setRestaurant((prev: any) => ({ ...prev, isAcceptingOrders: nextState }));
+                try {
+                  const res = await api.put(`/api/restaurants/${restaurant.id}`, {
+                    isAcceptingOrders: nextState,
+                  });
+                  const updatedRest = res.data.restaurant;
+                  setRestaurant(updatedRest);
+                  localStorage.setItem('restaurant', JSON.stringify(updatedRest));
+                } catch (err) {
+                  // Revert if API failed
+                  setRestaurant((prev: any) => ({ ...prev, isAcceptingOrders: previousState }));
+                  console.error(err);
+                  alert('Could not toggle kitchen status.');
+                }
+              }}
+              className={`w-full py-2.5 px-3 rounded-xl text-xs font-bold transition-all active:scale-95 duration-100 flex items-center justify-between border cursor-pointer select-none ${
+                (restaurant.isAcceptingOrders ?? true)
+                  ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-700 hover:bg-emerald-500/20'
+                  : 'bg-red-500/10 border-red-500/20 text-red-700 hover:bg-red-500/20'
+              }`}
+            >
+              <span className="flex items-center gap-1.5 font-bold">
+                <span className={`w-2 h-2 rounded-full ${restaurant.isAcceptingOrders ?? true ? 'bg-emerald-500 animate-ping' : 'bg-red-500'}`}></span>
+                {restaurant.isAcceptingOrders ?? true ? 'Orders OPEN' : 'Orders PAUSED'}
+              </span>
+              <span className="text-[10px] underline">Change</span>
+            </button>
+          </div>
         </div>
 
         <div className="pt-6 border-t border-[#EAE8E4] mt-6 md:mt-0 flex flex-col gap-4">
@@ -166,6 +240,16 @@ export default function Dashboard() {
 
       {/* Main Content Space */}
       <main className="flex-1 p-6 md:p-10 overflow-y-auto max-w-5xl">
+        {announcement && (
+          <div className="bg-amber-500/10 border border-amber-500/20 text-amber-900 px-4 py-3 rounded-2xl flex items-center gap-3 text-xs mb-6 shadow-sm">
+            <Megaphone size={18} className="text-amber-700 shrink-0" />
+            <div className="flex-1 font-medium">
+              <span className="font-bold uppercase tracking-wider text-[10px] bg-amber-500/20 px-2 py-0.5 rounded text-amber-800 mr-2">Platform Announcement</span>
+              {announcement.message}
+            </div>
+          </div>
+        )}
+
         {activeTab === 'overview' && (
           <div className="space-y-8">
             {/* Cafe Details Card */}
@@ -256,7 +340,7 @@ export default function Dashboard() {
                       type="button"
                       onClick={() => {
                         setEditingProfile(false);
-                        setLogoPreview(restaurant.logoUrl ? `${API_BASE_URL}${restaurant.logoUrl}` : null);
+                        setLogoPreview(restaurant.logoUrl ? (restaurant.logoUrl.startsWith('http') ? restaurant.logoUrl : `${API_BASE_URL}${restaurant.logoUrl}`) : null);
                         setRestName(restaurant.name || '');
                         setRestAddress(restaurant.address || '');
                         setRestContact(restaurant.contactNumber || '');
@@ -270,8 +354,17 @@ export default function Dashboard() {
               ) : (
                 <div className="flex flex-col sm:flex-row items-center gap-6">
                   <div className="w-20 h-20 rounded-2xl bg-[#F6F4F0] border border-[#EAE8E4] flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
-                    {restaurant.logoUrl ? (
-                      <img src={`${API_BASE_URL}${restaurant.logoUrl}`} alt="Logo" className="w-full h-full object-cover" />
+                    {restaurant.logoUrl && !logoError ? (
+                      <img
+                        src={
+                          restaurant.logoUrl.startsWith('http') || restaurant.logoUrl.startsWith('data:')
+                            ? restaurant.logoUrl
+                            : `${API_BASE_URL}${restaurant.logoUrl}`
+                        }
+                        alt="Logo"
+                        onError={() => setLogoError(true)}
+                        className="w-full h-full object-cover"
+                      />
                     ) : (
                       <Store size={32} className="text-[#7A7571]" />
                     )}

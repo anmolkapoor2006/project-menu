@@ -4,6 +4,8 @@ dist/
 
 # Env config
 .env
+.env.production
+.env.*
 
 # Logs
 npm-debug.log*
@@ -12,3 +14,4 @@ yarn-error.log*
 
 # System files
 .DS_Store
+.vercel

@@ -4,7 +4,8 @@ datasource db {
 }
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-3.0.x", "debian-openssl-3.0.x"]
 }
 
 enum Role {
@@ -31,20 +32,23 @@ model User {
 }
 
 model Restaurant {
-  id            String         @id @default(uuid())
-  ownerId       String
-  owner         User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  name          String
-  slug          String         @unique
-  logoUrl       String?
-  address       String?
-  contactNumber String?
-  isActive      Boolean        @default(true)
-  categories    MenuCategory[]
-  scanEvents    QRScanEvent[]
-  orders        Order[]
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  id                 String         @id @default(uuid())
+  ownerId            String
+  owner              User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  name               String
+  slug               String         @unique
+  logoUrl            String?
+  address            String?
+  contactNumber      String?
+  isActive           Boolean        @default(true)
+  isAcceptingOrders  Boolean        @default(true)
+  categories         MenuCategory[]
+  scanEvents         QRScanEvent[]
+  orders             Order[]
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  @@index([ownerId])
 }
 
 model MenuCategory {
@@ -55,6 +59,8 @@ model MenuCategory {
   displayOrder Int        @default(0)
   items        MenuItem[]
   createdAt    DateTime   @default(now())
+
+  @@index([restaurantId])
 }
 
 model MenuItem {
@@ -67,9 +73,21 @@ model MenuItem {
   imageUrl     String?
   isVeg        Boolean     @default(true)
   isAvailable  Boolean     @default(true)
+  badge        String?
+  prepTime     String?
   displayOrder Int         @default(0)
   orderItems   OrderItem[]
   createdAt    DateTime    @default(now())
+
+  @@index([categoryId])
+}
+
+model Announcement {
+  id        String   @id @default(uuid())
+  message   String
+  type      String   @default("INFO")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
 }
 
 model QRScanEvent {
@@ -79,6 +97,8 @@ model QRScanEvent {
   source       String     // "qr" or "direct_link"
   userAgent    String?
   timestamp    DateTime   @default(now())
+
+  @@index([restaurantId])
 }
 
 model Order {
@@ -90,6 +110,8 @@ model Order {
   items        OrderItem[]
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
+
+  @@index([restaurantId])
 }
 
 model OrderItem {
@@ -102,4 +124,7 @@ model OrderItem {
   priceAtOrder Decimal  @db.Decimal(10, 2)
   notes        String?
   createdAt    DateTime @default(now())
+
+  @@index([orderId])
+  @@index([menuItemId])
 }

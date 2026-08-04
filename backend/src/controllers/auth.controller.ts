@@ -1,10 +1,10 @@
 import { Request, Response } from 'express';
-import { PrismaClient, Role } from '@prisma/client';
+import { Role } from '@prisma/client';
+import prisma from '../prisma';
 import * as bcrypt from 'bcryptjs';
 import * as jwt from 'jsonwebtoken';
 import { z } from 'zod';
 
-const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET || 'supersecretjwttokenkey123!';
 
 const registerSchema = z.object({
@@ -181,7 +181,7 @@ export async function login(req: Request, res: Response) {
 export async function me(req: any, res: Response) {
   try {
     const user = await prisma.user.findUnique({
-      where: { id: req.user.id },
+      where: { id: req.user.userId },
       select: {
         id: true,
         name: true,
@@ -195,7 +195,17 @@ export async function me(req: any, res: Response) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    return res.json({ user });
+    const restaurant = user.restaurants[0] || null;
+
+    return res.json({
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
+      restaurant,
+    });
   } catch (error) {
     console.error(error);
     return res.status(500).json({ error: 'Internal server error' });

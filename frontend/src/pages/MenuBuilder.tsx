@@ -11,6 +11,8 @@ interface MenuItem {
   imageUrl: string | null;
   isVeg: boolean;
   isAvailable: boolean;
+  badge: string | null;
+  prepTime: string | null;
   displayOrder: number;
 }
 
@@ -46,6 +48,8 @@ export default function MenuBuilder({ restaurantId }: MenuBuilderProps) {
   const [itemPrice, setItemPrice] = useState('');
   const [itemVeg, setItemVeg] = useState(true);
   const [itemAvailable, setItemAvailable] = useState(true);
+  const [itemBadge, setItemBadge] = useState<string>('');
+  const [itemPrepTime, setItemPrepTime] = useState<string>('');
   const [itemOrder, setItemOrder] = useState(0);
   const [itemImage, setItemImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -54,10 +58,9 @@ export default function MenuBuilder({ restaurantId }: MenuBuilderProps) {
 
   const fetchMenu = async () => {
     try {
-      const restaurant = JSON.parse(localStorage.getItem('restaurant') || '{}');
-      if (restaurant.slug) {
-        const response = await api.get(`/api/public/menu/${restaurant.slug}`);
-        setCategories(response.data.restaurant.categories || []);
+      if (restaurantId) {
+        const response = await api.get(`/api/restaurants/${restaurantId}/full-menu`);
+        setCategories(response.data.categories || []);
       }
     } catch (err) {
       console.error(err);
@@ -113,7 +116,7 @@ export default function MenuBuilder({ restaurantId }: MenuBuilderProps) {
   };
 
   const handleDeleteCategory = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this category? All its items will be deleted.')) return;
+    if (!window.confirm('Are you sure you want to delete this category and all its items?')) return;
     try {
       await api.delete(`/api/categories/${id}`);
       fetchMenu();
@@ -136,9 +139,11 @@ export default function MenuBuilder({ restaurantId }: MenuBuilderProps) {
       setItemPrice(item.price);
       setItemVeg(item.isVeg);
       setItemAvailable(item.isAvailable);
+      setItemBadge(item.badge || '');
+      setItemPrepTime(item.prepTime || '');
       setItemOrder(item.displayOrder);
       if (item.imageUrl) {
-        setImagePreview(`${API_BASE_URL}${item.imageUrl}`);
+        setImagePreview(item.imageUrl.startsWith('http') ? item.imageUrl : `${API_BASE_URL}${item.imageUrl}`);
       }
     } else {
       setEditingItem(null);
@@ -147,6 +152,8 @@ export default function MenuBuilder({ restaurantId }: MenuBuilderProps) {
       setItemPrice('');
       setItemVeg(true);
       setItemAvailable(true);
+      setItemBadge('');
+      setItemPrepTime('');
       setItemOrder(0);
     }
     setItemModalOpen(true);
@@ -171,6 +178,8 @@ export default function MenuBuilder({ restaurantId }: MenuBuilderProps) {
     formData.append('price', itemPrice);
     formData.append('isVeg', String(itemVeg));
     formData.append('isAvailable', String(itemAvailable));
+    formData.append('badge', itemBadge);
+    formData.append('prepTime', itemPrepTime);
     formData.append('displayOrder', String(itemOrder));
     if (itemImage) {
       formData.append('image', itemImage);
@@ -206,12 +215,28 @@ export default function MenuBuilder({ restaurantId }: MenuBuilderProps) {
   };
 
   const handleToggleItemAvailability = async (item: MenuItem) => {
+    setError('');
+    const nextAvailable = !item.isAvailable;
+    // 0ms Instant Optimistic UI update
+    setCategories((prev) =>
+      prev.map((cat) => ({
+        ...cat,
+        items: cat.items.map((i) => (i.id === item.id ? { ...i, isAvailable: nextAvailable } : i)),
+      }))
+    );
+
     try {
       await api.put(`/api/items/${item.id}`, {
-        isAvailable: !item.isAvailable,
+        isAvailable: nextAvailable,
       });
-      fetchMenu();
     } catch (err: any) {
+      // Revert if API failed
+      setCategories((prev) =>
+        prev.map((cat) => ({
+          ...cat,
+          items: cat.items.map((i) => (i.id === item.id ? { ...i, isAvailable: item.isAvailable } : i)),
+        }))
+      );
       setError(err.response?.data?.error || 'Failed to toggle availability.');
     }
   };
@@ -300,7 +325,7 @@ export default function MenuBuilder({ restaurantId }: MenuBuilderProps) {
                     >
                       {item.imageUrl && (
                         <img
-                          src={`${API_BASE_URL}${item.imageUrl}`}
+                          src={item.imageUrl.startsWith('http') ? item.imageUrl : `${API_BASE_URL}${item.imageUrl}`}
                           alt={item.name}
                           className="w-20 h-20 object-cover rounded-xl bg-[#F6F4F0] border border-[#E5E2DC] shrink-0"
                         />
@@ -309,13 +334,12 @@ export default function MenuBuilder({ restaurantId }: MenuBuilderProps) {
                         <div className="flex items-start justify-between gap-2">
                           <h4 className="font-bold text-[#1C1917] text-sm leading-tight">{item.name}</h4>
                           <span className="text-sm font-bold text-[#5E6F58] font-mono shrink-0">
-                            ${parseFloat(item.price).toFixed(2)}
+                            ₹{parseFloat(item.price).toFixed(2)}
                           </span>
                         </div>
                         <p className="text-xs text-[#7A7571] line-clamp-2 h-8">{item.description || 'No description.'}</p>
-                        
-                        <div className="flex items-center justify-between pt-2">
-                          <div className="flex items-center gap-2">
+                                               <div className="flex items-center justify-between pt-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span
                               className={`text-[9px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider ${
                                 item.isVeg
@@ -325,31 +349,42 @@ export default function MenuBuilder({ restaurantId }: MenuBuilderProps) {
                             >
                               {item.isVeg ? 'Veg' : 'Non-Veg'}
                             </span>
+                            {item.badge && (
+                              <span className="text-[9px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider bg-amber-500/10 text-amber-700 border border-amber-500/20">
+                                {item.badge === 'bestseller' && '🔥 Bestseller'}
+                                {item.badge === 'spicy' && '🌶️ Spicy'}
+                                {item.badge === 'special' && '⭐ Chef Special'}
+                                {item.badge === 'new' && '🆕 New Item'}
+                              </span>
+                            )}
                             <span className="text-[9px] text-slate-400 font-mono">Order: {item.displayOrder}</span>
                           </div>
 
-                          <div className="flex items-center gap-0.5">
+                          <div className="flex items-center gap-1">
                             <button
+                              type="button"
                               onClick={() => handleToggleItemAvailability(item)}
-                              className={`p-1.5 rounded-lg border transition-all ${
+                              className={`p-1.5 rounded-lg border transition-all active:scale-90 duration-100 cursor-pointer ${
                                 item.isAvailable
-                                  ? 'text-emerald-600 hover:text-emerald-700 bg-emerald-500/5 border-emerald-500/10'
+                                  ? 'text-emerald-600 hover:text-emerald-700 bg-emerald-500/10 border-emerald-500/20'
                                   : 'text-slate-400 hover:text-slate-500 bg-slate-100 border-slate-200'
                               }`}
-                              title={item.isAvailable ? 'Mark Out of Stock' : 'Mark In Stock'}
+                              title={item.isAvailable ? 'Mark Sold Out' : 'Mark In Stock'}
                             >
                               {item.isAvailable ? <Eye size={14} /> : <EyeOff size={14} />}
                             </button>
                             <button
+                              type="button"
                               onClick={() => handleOpenItemModal(category.id, item)}
-                              className="p-1.5 text-[#7A7571] hover:text-[#5E6F58] hover:bg-[#FAF9F5] rounded-lg transition-all"
+                              className="p-1.5 text-[#7A7571] hover:text-[#5E6F58] hover:bg-[#FAF9F5] rounded-lg transition-all active:scale-90 duration-100 cursor-pointer"
                               title="Edit Item"
                             >
                               <Edit2 size={14} />
                             </button>
                             <button
+                              type="button"
                               onClick={() => handleDeleteItem(item.id)}
-                              className="p-1.5 text-[#7A7571] hover:text-red-600 hover:bg-[#FAF9F5] rounded-lg transition-all"
+                              className="p-1.5 text-[#7A7571] hover:text-red-600 hover:bg-[#FAF9F5] rounded-lg transition-all active:scale-90 duration-100 cursor-pointer"
                               title="Delete Item"
                             >
                               <Trash2 size={14} />
@@ -461,7 +496,7 @@ export default function MenuBuilder({ restaurantId }: MenuBuilderProps) {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-[#7A7571]">Price ($)</label>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-[#7A7571]">Price (₹)</label>
                   <input
                     type="number"
                     step="0.01"
@@ -469,7 +504,18 @@ export default function MenuBuilder({ restaurantId }: MenuBuilderProps) {
                     value={itemPrice}
                     onChange={(e) => setItemPrice(e.target.value)}
                     className="mt-2 block w-full px-4 py-2 bg-[#F6F4F0] border border-[#E5E2DC] rounded-xl text-[#1C1917] focus:outline-none focus:ring-1 focus:ring-[#5E6F58] focus:border-[#5E6F58] text-sm transition-all"
-                    placeholder="9.99"
+                    placeholder="99.00"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-[#7A7571]">Prep Time (Optional)</label>
+                  <input
+                    type="text"
+                    value={itemPrepTime}
+                    onChange={(e) => setItemPrepTime(e.target.value)}
+                    className="mt-2 block w-full px-4 py-2 bg-[#F6F4F0] border border-[#E5E2DC] rounded-xl text-[#1C1917] focus:outline-none focus:ring-1 focus:ring-[#5E6F58] focus:border-[#5E6F58] text-sm transition-all"
+                    placeholder="e.g. 10-15 mins"
                   />
                 </div>
 
@@ -482,6 +528,32 @@ export default function MenuBuilder({ restaurantId }: MenuBuilderProps) {
                     onChange={(e) => setItemOrder(parseInt(e.target.value) || 0)}
                     className="mt-2 block w-full px-4 py-2 bg-[#F6F4F0] border border-[#E5E2DC] rounded-xl text-[#1C1917] focus:outline-none focus:ring-1 focus:ring-[#5E6F58] focus:border-[#5E6F58] text-sm transition-all"
                   />
+                </div>
+
+                <div className="md:col-span-2 space-y-1">
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-[#7A7571]">Highlight Badge (Optional)</label>
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {[
+                      { id: '', label: 'None' },
+                      { id: 'bestseller', label: '🔥 Bestseller' },
+                      { id: 'spicy', label: '🌶️ Spicy' },
+                      { id: 'special', label: '⭐ Chef Special' },
+                      { id: 'new', label: '🆕 New Item' },
+                    ].map((b) => (
+                      <button
+                        key={b.id}
+                        type="button"
+                        onClick={() => setItemBadge(b.id)}
+                        className={`text-xs px-3 py-1.5 rounded-xl font-bold border transition-all ${
+                          itemBadge === b.id
+                            ? 'bg-[#5E6F58] text-white border-[#5E6F58] shadow-sm'
+                            : 'bg-[#F6F4F0] text-[#7A7571] border-[#E5E2DC] hover:text-[#1C1917]'
+                        }`}
+                      >
+                        {b.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-4 bg-[#F6F4F0] border border-[#E5E2DC] px-4 py-2 rounded-xl">
@@ -513,17 +585,17 @@ export default function MenuBuilder({ restaurantId }: MenuBuilderProps) {
                 </div>
 
                 <div className="flex items-center gap-4 bg-[#F6F4F0] border border-[#E5E2DC] px-4 py-2 rounded-xl">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-[#7A7571]">Status</span>
+                  <span className="text-xs font-semibold uppercase tracking-wider text-[#7A7571]">Inventory</span>
                   <button
                     type="button"
                     onClick={() => setItemAvailable(!itemAvailable)}
-                    className={`ml-auto text-xs px-2.5 py-1 rounded-lg font-bold border transition-all ${
+                    className={`ml-auto text-xs px-3 py-1 rounded-lg font-bold border transition-all ${
                       itemAvailable
-                        ? 'bg-[#5E6F58]/10 text-[#5E6F58] border-[#5E6F58]/20'
-                        : 'bg-slate-200 text-slate-400 border-transparent'
+                        ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
+                        : 'bg-red-500/10 text-red-600 border-red-500/20'
                     }`}
                   >
-                    {itemAvailable ? 'In Stock' : 'Out of Stock'}
+                    {itemAvailable ? 'In Stock' : 'Sold Out'}
                   </button>
                 </div>
 

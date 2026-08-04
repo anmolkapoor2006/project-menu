@@ -17,18 +17,18 @@ export async function updateRestaurant(req: AuthenticatedRequest, res: Response)
   try {
     const { id } = req.params;
     
-    // Check permission
-    if (!req.user || (req.user.role !== 'SUPER_ADMIN' && req.user.restaurantId !== id)) {
+    const existing = await prisma.restaurant.findUnique({ where: { id } });
+    if (!existing) {
+      return res.status(404).json({ error: 'Restaurant not found' });
+    }
+
+    const userId = req.user?.id || req.user?.userId;
+    if (!req.user || (req.user.role !== 'SUPER_ADMIN' && existing.ownerId !== userId && req.user.restaurantId !== id)) {
       return res.status(403).json({ error: 'You are not authorized to update this restaurant' });
     }
 
     const body = updateRestaurantSchema.parse(req.body);
     const logoUrl = req.file ? await uploadToCloudinary(req.file.path) : undefined;
-
-    const existing = await prisma.restaurant.findUnique({ where: { id } });
-    if (!existing) {
-      return res.status(404).json({ error: 'Restaurant not found' });
-    }
 
     const updateData: any = { ...body };
     if (logoUrl) {
@@ -57,14 +57,14 @@ export async function getQRCode(req: AuthenticatedRequest, res: Response) {
   try {
     const { id } = req.params;
 
-    // Check permission
-    if (!req.user || (req.user.role !== 'SUPER_ADMIN' && req.user.restaurantId !== id)) {
-      return res.status(403).json({ error: 'You are not authorized to view this QR code' });
-    }
-
     const restaurant = await prisma.restaurant.findUnique({ where: { id } });
     if (!restaurant) {
       return res.status(404).json({ error: 'Restaurant not found' });
+    }
+
+    const userId = req.user?.id || req.user?.userId;
+    if (!req.user || (req.user.role !== 'SUPER_ADMIN' && restaurant.ownerId !== userId && req.user.restaurantId !== id)) {
+      return res.status(403).json({ error: 'You are not authorized to view this QR code' });
     }
 
     let frontendUrl = process.env.FRONTEND_URL;

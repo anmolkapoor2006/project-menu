@@ -6,6 +6,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'supersecretjwttokenkey123!';
 export interface AuthenticatedRequest extends Request {
   user?: {
     id: string;
+    userId?: string;
     email: string;
     role: 'SUPER_ADMIN' | 'RESTAURANT_ADMIN';
     restaurantId?: string;
@@ -25,7 +26,8 @@ export function authenticateToken(req: AuthenticatedRequest, res: Response, next
       return res.status(403).json({ error: 'Invalid or expired token' });
     }
     req.user = {
-      id: decoded.userId,
+      id: decoded.userId || decoded.id,
+      userId: decoded.userId || decoded.id,
       email: decoded.email,
       role: decoded.role,
       restaurantId: decoded.restaurantId

@@ -20,13 +20,26 @@ const itemSchema = z.object({
   displayOrder: z.preprocess((val) => Number(val), z.number().int().default(0)),
 });
 
+async function isAuthorizedForRestaurant(user: any, restaurantId: string): Promise<boolean> {
+  if (!user) return false;
+  if (user.role === 'SUPER_ADMIN') return true;
+  if (user.restaurantId === restaurantId) return true;
+  const userId = user.id || user.userId;
+  if (userId) {
+    const restaurant = await prisma.restaurant.findUnique({ where: { id: restaurantId } });
+    if (restaurant && restaurant.ownerId === userId) return true;
+  }
+  return false;
+}
+
 // --- Category Controllers ---
 
 export async function createCategory(req: AuthenticatedRequest, res: Response) {
   try {
     const { id: restaurantId } = req.params;
 
-    if (!req.user || (req.user.role !== 'SUPER_ADMIN' && req.user.restaurantId !== restaurantId)) {
+    const isAuth = await isAuthorizedForRestaurant(req.user, restaurantId);
+    if (!isAuth) {
       return res.status(403).json({ error: 'Not authorized to modify this menu' });
     }
 
@@ -59,7 +72,8 @@ export async function updateCategory(req: AuthenticatedRequest, res: Response) {
       return res.status(404).json({ error: 'Category not found' });
     }
 
-    if (!req.user || (req.user.role !== 'SUPER_ADMIN' && req.user.restaurantId !== existing.restaurantId)) {
+    const isAuth = await isAuthorizedForRestaurant(req.user, existing.restaurantId);
+    if (!isAuth) {
       return res.status(403).json({ error: 'Not authorized to modify this category' });
     }
 
@@ -92,7 +106,8 @@ export async function deleteCategory(req: AuthenticatedRequest, res: Response) {
       return res.status(404).json({ error: 'Category not found' });
     }
 
-    if (!req.user || (req.user.role !== 'SUPER_ADMIN' && req.user.restaurantId !== existing.restaurantId)) {
+    const isAuth = await isAuthorizedForRestaurant(req.user, existing.restaurantId);
+    if (!isAuth) {
       return res.status(403).json({ error: 'Not authorized to delete this category' });
     }
 
@@ -116,29 +131,30 @@ export async function createMenuItem(req: AuthenticatedRequest, res: Response) {
       return res.status(404).json({ error: 'Category not found' });
     }
 
-    if (!req.user || (req.user.role !== 'SUPER_ADMIN' && req.user.restaurantId !== category.restaurantId)) {
+    const isAuth = await isAuthorizedForRestaurant(req.user, category.restaurantId);
+    if (!isAuth) {
       return res.status(403).json({ error: 'Not authorized to add items to this category' });
     }
 
     const body = itemSchema.parse(req.body);
     const imageUrl = req.file ? await uploadToCloudinary(req.file.path) : undefined;
 
-    const menuItem = await prisma.menuItem.create({
+    const item = await prisma.menuItem.create({
       data: {
         categoryId,
         name: body.name,
         description: body.description,
-        price: body.price,
+        price: body.price.toString(),
         isVeg: body.isVeg,
         isAvailable: body.isAvailable,
-        badge: body.badge || null,
-        prepTime: body.prepTime || null,
+        badge: body.badge,
+        prepTime: body.prepTime,
         displayOrder: body.displayOrder,
         imageUrl,
       },
     });
 
-    return res.status(201).json({ message: 'Menu item created successfully', item: menuItem });
+    return res.status(201).json({ message: 'Menu item created successfully', item });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: error.errors[0].message });
@@ -154,39 +170,35 @@ export async function updateMenuItem(req: AuthenticatedRequest, res: Response) {
 
     const existing = await prisma.menuItem.findUnique({
       where: { id },
-      include: { category: true }
+      include: { category: true },
     });
 
     if (!existing) {
       return res.status(404).json({ error: 'Menu item not found' });
     }
 
-    if (!req.user || (req.user.role !== 'SUPER_ADMIN' && req.user.restaurantId !== existing.category.restaurantId)) {
-      return res.status(403).json({ error: 'Not authorized to modify this item' });
+    const isAuth = await isAuthorizedForRestaurant(req.user, existing.category.restaurantId);
+    if (!isAuth) {
+      return res.status(403).json({ error: 'Not authorized to update this item' });
     }
 
     const body = itemSchema.partial().parse(req.body);
-    let imageUrl = existing.imageUrl;
-    if (req.file) {
-      imageUrl = await uploadToCloudinary(req.file.path);
+    const imageUrl = req.file ? await uploadToCloudinary(req.file.path) : undefined;
+
+    const updateData: any = { ...body };
+    if (body.price !== undefined) {
+      updateData.price = body.price.toString();
+    }
+    if (imageUrl) {
+      updateData.imageUrl = imageUrl;
     }
 
-    const menuItem = await prisma.menuItem.update({
+    const item = await prisma.menuItem.update({
       where: { id },
-      data: {
-        ...(body.name !== undefined && { name: body.name }),
-        ...(body.description !== undefined && { description: body.description }),
-        ...(body.price !== undefined && { price: body.price }),
-        ...(body.isVeg !== undefined && { isVeg: body.isVeg }),
-        ...(body.isAvailable !== undefined && { isAvailable: body.isAvailable }),
-        ...(body.badge !== undefined && { badge: body.badge }),
-        ...(body.prepTime !== undefined && { prepTime: body.prepTime }),
-        ...(body.displayOrder !== undefined && { displayOrder: body.displayOrder }),
-        imageUrl,
-      },
+      data: updateData,
     });
 
-    return res.json({ message: 'Menu item updated successfully', item: menuItem });
+    return res.json({ message: 'Menu item updated successfully', item });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: error.errors[0].message });
@@ -204,12 +216,14 @@ export async function deleteMenuItem(req: AuthenticatedRequest, res: Response) {
       where: { id },
       include: { category: true },
     });
+
     if (!existing) {
       return res.status(404).json({ error: 'Menu item not found' });
     }
 
-    if (!req.user || (req.user.role !== 'SUPER_ADMIN' && req.user.restaurantId !== existing.category.restaurantId)) {
-      return res.status(403).json({ error: 'Not authorized to delete this menu item' });
+    const isAuth = await isAuthorizedForRestaurant(req.user, existing.category.restaurantId);
+    if (!isAuth) {
+      return res.status(403).json({ error: 'Not authorized to delete this item' });
     }
 
     await prisma.menuItem.delete({ where: { id } });
@@ -223,20 +237,21 @@ export async function deleteMenuItem(req: AuthenticatedRequest, res: Response) {
 
 export async function getRestaurantFullMenu(req: AuthenticatedRequest, res: Response) {
   try {
-    const { id } = req.params;
+    const { id: restaurantId } = req.params;
 
-    if (!req.user || (req.user.role !== 'SUPER_ADMIN' && req.user.restaurantId !== id)) {
-      return res.status(403).json({ error: 'Not authorized to view menu management' });
+    const isAuth = await isAuthorizedForRestaurant(req.user, restaurantId);
+    if (!isAuth) {
+      return res.status(403).json({ error: 'Not authorized to view this menu' });
     }
 
     const categories = await prisma.menuCategory.findMany({
-      where: { restaurantId: id },
+      where: { restaurantId },
       orderBy: { displayOrder: 'asc' },
       include: {
         items: {
-          orderBy: { displayOrder: 'asc' },
-        },
-      },
+          orderBy: { displayOrder: 'asc' }
+        }
+      }
     });
 
     return res.json({ categories });

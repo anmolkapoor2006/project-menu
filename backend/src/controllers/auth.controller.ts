@@ -180,8 +180,13 @@ export async function login(req: Request, res: Response) {
 
 export async function me(req: any, res: Response) {
   try {
-    const user = await prisma.user.findUnique({
-      where: { id: req.user.userId },
+    const userId = req.user?.id || req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    let user = await prisma.user.findUnique({
+      where: { id: userId },
       select: {
         id: true,
         name: true,
@@ -195,7 +200,19 @@ export async function me(req: any, res: Response) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    const restaurant = user.restaurants[0] || null;
+    let restaurant = user.restaurants[0] || null;
+
+    // Auto-heal: If restaurant admin has no restaurant registered yet, auto-create one
+    if (!restaurant && user.role === 'RESTAURANT_ADMIN') {
+      const slug = await generateUniqueSlug(`${user.name}s Cafe`);
+      restaurant = await prisma.restaurant.create({
+        data: {
+          name: `${user.name}'s Cafe`,
+          slug,
+          ownerId: user.id,
+        }
+      });
+    }
 
     return res.json({
       user: {

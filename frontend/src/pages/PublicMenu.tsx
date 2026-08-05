@@ -6,7 +6,7 @@ import api from '../api/api';
 import { 
   Store, Phone, MapPin, Search, Leaf, AlertCircle, Loader2, 
   ShoppingCart, Plus, Minus, X, Check, Utensils, ClipboardList, MessageCircle, Bell,
-  QrCode, ExternalLink, Clock, CheckCircle2
+  QrCode, ExternalLink, Clock, CheckCircle2, ArrowLeft
 } from 'lucide-react';
 
 interface MenuItem {
@@ -922,7 +922,7 @@ export default function PublicMenu() {
           </div>
         )}
 
-        {/* Sliding Cart Drawer */}
+        {/* Step 1: Sliding Cart Drawer (Your Basket) */}
         {cartOpen && (
           <div 
             onClick={() => setCartOpen(false)}
@@ -933,11 +933,11 @@ export default function PublicMenu() {
               className="w-full max-w-md bg-white border-x border-[#EAE8E4] h-full flex flex-col shadow-2xl overflow-hidden"
             >
               
-              {/* Header */}
+              {/* Drawer Header */}
               <div className="p-5 border-b border-[#EAE8E4] flex justify-between items-center bg-gradient-to-b from-[#F6F4F0] to-white shrink-0">
                 <div className="flex items-center gap-2 text-[#5E6F58]">
                   <Utensils size={18} />
-                  <h2 className="text-xs font-bold text-[#1C1917] uppercase tracking-wider">Your Basket</h2>
+                  <h2 className="text-xs font-bold text-[#1C1917] uppercase tracking-wider">Your Basket ({cartTotalItems})</h2>
                 </div>
                 <button
                   onClick={() => setCartOpen(false)}
@@ -947,20 +947,21 @@ export default function PublicMenu() {
                 </button>
               </div>
 
-              {/* Drawer Scrollable Body (Basket items + Payment section) */}
-              <div className="flex-1 overflow-y-auto p-5 space-y-5 overscroll-contain touch-pan-y">
+              {/* Basket Items List */}
+              <div className="flex-1 overflow-y-auto p-5 space-y-4 overscroll-contain touch-pan-y">
                 {orderError && (
                   <div className="bg-red-500/5 border border-red-500/20 text-red-750 text-xs p-3.5 rounded-xl">
                     {orderError}
                   </div>
                 )}
 
-                {/* Basket list */}
-                <div className="space-y-4">
-                  <div className="text-[10px] uppercase font-bold tracking-wider text-[#7A7571]">
-                    Items in your basket ({cartTotalItems})
+                {cart.length === 0 ? (
+                  <div className="text-center py-12 space-y-3">
+                    <ShoppingCart size={40} className="mx-auto text-slate-300" />
+                    <p className="text-xs font-semibold text-slate-500">Your basket is currently empty.</p>
                   </div>
-                  {cart.map((item) => (
+                ) : (
+                  cart.map((item) => (
                     <div key={item.menuItem.id} className="bg-[#F6F4F0]/30 border border-[#EAE8E4] p-4 rounded-2xl space-y-3">
                       <div className="flex justify-between items-start gap-4">
                         <div>
@@ -1027,199 +1028,74 @@ export default function PublicMenu() {
                         </div>
                       </div>
                     </div>
-                  ))}
-                </div>
-
-                {/* Drawer Footer / Payment Section */}
-                <div className="pt-4 border-t border-[#EAE8E4] space-y-4">
-                  <div className="space-y-3">
-                    <div>
-                      <label className="block text-[10px] font-bold text-[#7A7571] uppercase tracking-wider">
-                        Your Name <span className="text-red-500">*</span> <span className="text-[9px] text-slate-400 font-normal lowercase">(so the cafe can call you when ready)</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={customerName}
-                        onChange={(e) => {
-                          setCustomerName(e.target.value);
-                          if (nameError) setNameError('');
-                        }}
-                        placeholder="e.g. Rahul, Priya, Alex"
-                        className="mt-1.5 block w-full px-4 py-2.5 bg-white border border-[#EAE8E4] rounded-xl text-[#1C1917] focus:outline-none focus:ring-1 focus:ring-[#5E6F58] text-xs transition-all font-medium"
-                      />
-                      {nameError && <p className="text-[10px] text-red-600 font-bold mt-1">{nameError}</p>}
-                    </div>
-
-                    {/* Payment Method Selector */}
-                    {restaurant?.upiId && (
-                      <div>
-                        <label className="block text-[10px] font-bold text-[#7A7571] uppercase tracking-wider mb-1.5">
-                          Select Payment Method
-                        </label>
-                        <div className="grid grid-cols-2 gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setPaymentMethod('COUNTER')}
-                            className={`p-3 rounded-xl border text-left transition-all flex flex-col justify-between cursor-pointer ${
-                              paymentMethod === 'COUNTER'
-                                ? 'bg-[#5E6F58]/10 border-[#5E6F58] text-[#5E6F58] shadow-sm font-bold'
-                                : 'bg-white border-[#EAE8E4] text-[#7A7571] hover:border-[#D5D2CC]'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between">
-                              <Store size={16} />
-                              {paymentMethod === 'COUNTER' && <Check size={14} className="text-[#5E6F58]" />}
-                            </div>
-                            <span className="text-xs font-bold mt-2">Pay at Counter</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => setPaymentMethod('UPI')}
-                            className={`p-3 rounded-xl border text-left transition-all flex flex-col justify-between cursor-pointer ${
-                              paymentMethod === 'UPI'
-                                ? 'bg-[#5E6F58]/10 border-[#5E6F58] text-[#5E6F58] shadow-sm font-bold'
-                                : 'bg-white border-[#EAE8E4] text-[#7A7571] hover:border-[#D5D2CC]'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between">
-                              <QrCode size={16} />
-                              {paymentMethod === 'UPI' && <Check size={14} className="text-[#5E6F58]" />}
-                            </div>
-                            <span className="text-xs font-bold mt-2">Pay via UPI</span>
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="flex justify-between items-center text-xs font-bold text-[#7A7571] pt-2 border-t border-[#EAE8E4]">
-                      <span>Subtotal</span>
-                      <span className="text-[#1C1917] font-mono font-black text-sm">₹{cartSubtotal.toFixed(2)}</span>
-                    </div>
-                  </div>
-
-                  {/* Payment Form inside Drawer */}
-                  {paymentMethod === 'COUNTER' ? (
-                    <button
-                      onClick={() => handleCheckout('COUNTER')}
-                      disabled={cart.length === 0 || placingOrder}
-                      className="w-full py-3.5 bg-[#5E6F58] hover:bg-[#4E5D49] disabled:opacity-50 text-white font-bold rounded-xl text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer"
-                    >
-                      {placingOrder && <Loader2 className="animate-spin" size={14} />}
-                      Place Order - Pay at Counter
-                    </button>
-                  ) : (
-                    <div className="bg-[#FAF9F5] border border-[#EAE8E4] p-4 rounded-2xl space-y-4 text-center">
-                      <div className="space-y-1">
-                        <span className="text-[10px] font-bold text-[#5E6F58] uppercase tracking-wider bg-[#5E6F58]/10 px-2.5 py-1 rounded-full inline-block">
-                          Scan & Pay via any UPI App
-                        </span>
-                        <h4 className="text-xs font-bold text-[#1C1917]">
-                          {restaurant?.upiPayeeName ? `Payee: ${restaurant.upiPayeeName}` : (restaurant?.name || 'Cafe')}
-                        </h4>
-                      </div>
-
-                      <div className="relative mx-auto w-56 h-56 bg-white p-3 rounded-2xl border-2 border-[#5E6F58]/20 shadow-md flex items-center justify-center">
-                        {restaurant?.upiQrImageUrl ? (
-                          <img 
-                            src={restaurant.upiQrImageUrl.startsWith('http') ? restaurant.upiQrImageUrl : `${API_BASE_URL}${restaurant.upiQrImageUrl}`} 
-                            alt="Cafe Official UPI QR Code" 
-                            className="w-full h-full object-contain rounded-xl"
-                          />
-                        ) : upiQrCodeUrl ? (
-                          <img 
-                            src={upiQrCodeUrl} 
-                            alt="Generated UPI QR Code" 
-                            className="w-full h-full object-contain rounded-xl"
-                          />
-                        ) : (
-                          <Loader2 className="animate-spin text-[#5E6F58]" size={32} />
-                        )}
-                      </div>
-
-                      <div className="space-y-1">
-                        <div className="text-xs text-[#7A7571]">
-                          Amount to Pay: <span className="font-mono font-black text-sm text-[#1C1917]">₹{cartSubtotal.toFixed(2)}</span>
-                        </div>
-                        {restaurant?.upiId && (
-                          <p className="text-[10px] font-mono text-slate-500 font-bold">UPI ID: {restaurant.upiId}</p>
-                        )}
-                      </div>
-
-                      {(restaurant?.upiId || lastPlacedOrder?.restaurant?.upiId) && (
-                        <a
-                          href={
-                            upiDeepLink ||
-                            `upi://pay?pa=${encodeURIComponent(restaurant?.upiId || '')}&pn=${encodeURIComponent(restaurant?.upiPayeeName || restaurant?.name || 'Cafe')}&am=${cartSubtotal.toFixed(2)}&cu=INR&tn=CafeOrder`
-                          }
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center justify-center gap-2 px-4 py-3 bg-[#5E6F58] hover:bg-[#4E5D49] text-white font-bold rounded-xl text-xs uppercase tracking-wider transition-all shadow-md w-full text-center cursor-pointer"
-                        >
-                          <ExternalLink size={16} />
-                          Open in UPI App (GPay / PhonePe / Paytm)
-                        </a>
-                      )}
-
-                      <div className="pt-2 border-t border-[#EAE8E4]">
-                        <button
-                          onClick={() => handleCheckout('UPI')}
-                          disabled={placingOrder}
-                          className="w-full py-3.5 bg-[#5E6F58] hover:bg-[#4E5D49] disabled:opacity-50 text-white font-bold rounded-xl text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-md cursor-pointer"
-                        >
-                          {placingOrder ? <Loader2 className="animate-spin" size={14} /> : <CheckCircle2 size={16} />}
-                          I've Made the Payment
-                        </button>
-                        
-                        <p className="text-[10px] text-slate-600 font-medium leading-relaxed bg-amber-500/10 border border-amber-500/20 p-2.5 rounded-xl mt-3 text-left">
-                          💡 <strong>Please note:</strong> Please only click this after completing your payment. The cafe will verify before your order is prepared.
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                  ))
+                )}
               </div>
+
+              {/* Basket Footer: Subtotal & Proceed to Checkout */}
+              {cart.length > 0 && (
+                <div className="p-5 border-t border-[#EAE8E4] space-y-3 bg-[#FAF9F5] shrink-0">
+                  <div className="flex justify-between items-center text-xs font-bold text-[#7A7571]">
+                    <span>Subtotal</span>
+                    <span className="text-[#1C1917] font-mono font-black text-sm">₹{cartSubtotal.toFixed(2)}</span>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setCartOpen(false);
+                      setShowPaymentModal(true);
+                    }}
+                    className="w-full py-3.5 bg-[#5E6F58] hover:bg-[#4E5D49] text-white font-bold rounded-xl text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-md cursor-pointer"
+                  >
+                    Proceed to Checkout (₹{cartSubtotal.toFixed(2)}) →
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}
 
-        {/* Dedicated Payment Modal / Page */}
+        {/* Step 2: Dedicated Checkout & Payment Modal */}
         {showPaymentModal && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-            <div className="bg-white border border-[#EAE8E4] rounded-3xl max-w-md w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+          <div 
+            onClick={() => setShowPaymentModal(false)}
+            className="fixed inset-0 bg-black/75 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto"
+          >
+            <div 
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white border border-[#EAE8E4] rounded-3xl max-w-md w-full max-h-[92vh] flex flex-col shadow-2xl overflow-hidden my-auto"
+            >
               
               {/* Modal Header */}
-              <div className="p-5 border-b border-[#EAE8E4] flex justify-between items-center bg-gradient-to-b from-[#F6F4F0] to-white">
-                <div>
-                  <h3 className="text-sm font-bold text-[#1C1917] flex items-center gap-2">
-                    <Utensils size={18} className="text-[#5E6F58]" />
-                    Checkout & Payment
-                  </h3>
-                  <p className="text-[10px] text-[#7A7571]">Select payment method before order confirmation</p>
+              <div className="p-4 sm:p-5 border-b border-[#EAE8E4] flex justify-between items-center bg-gradient-to-b from-[#F6F4F0] to-white shrink-0">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      setShowPaymentModal(false);
+                      setCartOpen(true);
+                    }}
+                    className="p-1 text-[#7A7571] hover:text-[#1C1917] hover:bg-[#F6F4F0] rounded-lg transition-all cursor-pointer mr-1"
+                    title="Back to Basket"
+                  >
+                    <ArrowLeft size={18} />
+                  </button>
+                  <div>
+                    <h3 className="text-xs sm:text-sm font-bold text-[#1C1917] flex items-center gap-1.5">
+                      Checkout & Payment
+                    </h3>
+                    <p className="text-[10px] text-[#7A7571]">Total: ₹{cartSubtotal.toFixed(2)} ({cartTotalItems} item{cartTotalItems > 1 ? 's' : ''})</p>
+                  </div>
                 </div>
                 <button 
                   onClick={() => setShowPaymentModal(false)} 
-                  className="p-1.5 text-[#7A7571] hover:text-[#1C1917] hover:bg-[#F6F4F0] rounded-xl transition-all"
+                  className="p-1.5 text-[#7A7571] hover:text-[#1C1917] hover:bg-[#F6F4F0] rounded-xl transition-all cursor-pointer"
                 >
                   <X size={18} />
                 </button>
               </div>
 
-              <div className="p-5 overflow-y-auto space-y-5">
+              {/* Modal Body */}
+              <div className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1 overscroll-contain touch-pan-y">
                 
-                {/* Order Summary Pill */}
-                <div className="bg-[#FAF9F5] border border-[#EAE8E4] p-4 rounded-2xl flex justify-between items-center text-xs">
-                  <div>
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-[#7A7571] block">Order Summary</span>
-                    <span className="font-bold text-[#1C1917]">{cartTotalItems} item{cartTotalItems > 1 ? 's' : ''}</span>
-                    {customerName && <span className="text-[10px] text-[#5E6F58] font-semibold block">Customer: {customerName}</span>}
-                  </div>
-                  <div className="text-right">
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-[#7A7571] block">Total Amount</span>
-                    <span className="text-base font-black font-mono text-[#5E6F58]">₹{cartSubtotal.toFixed(2)}</span>
-                  </div>
-                </div>
-
                 {/* Customer Name Required Field */}
                 <div>
                   <label className="block text-[10px] font-bold text-[#7A7571] uppercase tracking-wider">
@@ -1239,56 +1115,140 @@ export default function PublicMenu() {
                 </div>
 
                 {/* Payment Option Selector */}
-                <div className="space-y-2">
-                  <label className="block text-[10px] font-bold text-[#7A7571] uppercase tracking-wider">
-                    Select Payment Method
-                  </label>
-                  
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {/* Pay at Counter Option */}
-                    <button
-                      type="button"
-                      onClick={() => setPaymentMethod('COUNTER')}
-                      className={`p-4 rounded-2xl border text-left transition-all flex flex-col justify-between ${
-                        paymentMethod === 'COUNTER'
-                          ? 'bg-[#5E6F58]/10 border-[#5E6F58] text-[#5E6F58] shadow-sm font-bold ring-1 ring-[#5E6F58]'
-                          : 'bg-white border-[#EAE8E4] text-[#7A7571] hover:border-[#D5D2CC]'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <Store size={20} />
-                        {paymentMethod === 'COUNTER' && <CheckCircle2 size={16} className="text-[#5E6F58]" />}
-                      </div>
-                      <div className="mt-3">
-                        <span className="text-xs font-bold block text-[#1C1917]">Pay at Counter</span>
-                        <span className="text-[9px] text-[#7A7571] block leading-tight mt-0.5">Pay cash or card at counter after order</span>
-                      </div>
-                    </button>
+                {restaurant?.upiId ? (
+                  <div className="space-y-2">
+                    <label className="block text-[10px] font-bold text-[#7A7571] uppercase tracking-wider">
+                      Select Payment Method
+                    </label>
+                    
+                    <div className="grid grid-cols-2 gap-2">
+                      {/* Pay at Counter Option */}
+                      <button
+                        type="button"
+                        onClick={() => setPaymentMethod('COUNTER')}
+                        className={`p-3 rounded-2xl border text-left transition-all flex flex-col justify-between cursor-pointer ${
+                          paymentMethod === 'COUNTER'
+                            ? 'bg-[#5E6F58]/10 border-[#5E6F58] text-[#5E6F58] shadow-sm font-bold ring-1 ring-[#5E6F58]'
+                            : 'bg-white border-[#EAE8E4] text-[#7A7571] hover:border-[#D5D2CC]'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <Store size={18} />
+                          {paymentMethod === 'COUNTER' && <CheckCircle2 size={14} className="text-[#5E6F58]" />}
+                        </div>
+                        <div className="mt-2">
+                          <span className="text-xs font-bold block text-[#1C1917]">Pay at Counter</span>
+                          <span className="text-[9px] text-[#7A7571] block leading-tight mt-0.5">Pay cash or card at counter</span>
+                        </div>
+                      </button>
 
-                    {/* Pay via UPI Option (Only rendered if uploaded QR or upiId exists) */}
-                    {(restaurant?.upiQrImageUrl || restaurant?.upiId) ? (
+                      {/* Pay via UPI Option */}
                       <button
                         type="button"
                         onClick={() => setPaymentMethod('UPI')}
-                        className={`p-4 rounded-2xl border text-left transition-all flex flex-col justify-between ${
+                        className={`p-3 rounded-2xl border text-left transition-all flex flex-col justify-between cursor-pointer ${
                           paymentMethod === 'UPI'
                             ? 'bg-[#5E6F58]/10 border-[#5E6F58] text-[#5E6F58] shadow-sm font-bold ring-1 ring-[#5E6F58]'
                             : 'bg-white border-[#EAE8E4] text-[#7A7571] hover:border-[#D5D2CC]'
                         }`}
                       >
                         <div className="flex items-center justify-between">
-                          <QrCode size={20} />
-                          {paymentMethod === 'UPI' && <CheckCircle2 size={16} className="text-[#5E6F58]" />}
+                          <QrCode size={18} />
+                          {paymentMethod === 'UPI' && <CheckCircle2 size={14} className="text-[#5E6F58]" />}
                         </div>
-                        <div className="mt-3">
+                        <div className="mt-2">
                           <span className="text-xs font-bold block text-[#1C1917]">Pay via UPI</span>
-                          <span className="text-[9px] text-[#7A7571] block leading-tight mt-0.5">Scan cafe's UPI QR with GPay, PhonePe, etc.</span>
+                          <span className="text-[9px] text-[#7A7571] block leading-tight mt-0.5">Scan QR with GPay, PhonePe</span>
                         </div>
                       </button>
-                    ) : null}
+                    </div>
                   </div>
-                </div>
+                ) : null}
 
+                {/* Form based on Payment Method */}
+                {paymentMethod === 'COUNTER' ? (
+                  <div className="pt-2">
+                    <button
+                      onClick={() => handleCheckout('COUNTER')}
+                      disabled={placingOrder}
+                      className="w-full py-3.5 bg-[#5E6F58] hover:bg-[#4E5D49] disabled:opacity-50 text-white font-bold rounded-xl text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-md cursor-pointer"
+                    >
+                      {placingOrder && <Loader2 className="animate-spin" size={14} />}
+                      Place Order - Pay at Counter (₹{cartSubtotal.toFixed(2)})
+                    </button>
+                  </div>
+                ) : (
+                  <div className="bg-[#FAF9F5] border border-[#EAE8E4] p-4 rounded-2xl space-y-3.5 text-center">
+                    <div className="space-y-0.5">
+                      <span className="text-[10px] font-bold text-[#5E6F58] uppercase tracking-wider bg-[#5E6F58]/10 px-2.5 py-0.5 rounded-full inline-block">
+                        Scan & Pay via any UPI App
+                      </span>
+                      <h4 className="text-xs font-bold text-[#1C1917]">
+                        {restaurant?.upiPayeeName ? `Payee: ${restaurant.upiPayeeName}` : (restaurant?.name || 'Cafe')}
+                      </h4>
+                    </div>
+
+                    {/* QR Code Display */}
+                    <div className="relative mx-auto w-48 h-48 sm:w-52 sm:h-52 bg-white p-2.5 rounded-2xl border-2 border-[#5E6F58]/20 shadow-md flex items-center justify-center">
+                      {restaurant?.upiQrImageUrl ? (
+                        <img 
+                          src={restaurant.upiQrImageUrl.startsWith('http') ? restaurant.upiQrImageUrl : `${API_BASE_URL}${restaurant.upiQrImageUrl}`} 
+                          alt="Cafe Official UPI QR Code" 
+                          className="w-full h-full object-contain rounded-xl"
+                        />
+                      ) : upiQrCodeUrl ? (
+                        <img 
+                          src={upiQrCodeUrl} 
+                          alt="Generated UPI QR Code" 
+                          className="w-full h-full object-contain rounded-xl"
+                        />
+                      ) : (
+                        <Loader2 className="animate-spin text-[#5E6F58]" size={32} />
+                      )}
+                    </div>
+
+                    {/* Amount & UPI ID */}
+                    <div className="space-y-0.5">
+                      <div className="text-xs text-[#7A7571]">
+                        Amount to Pay: <span className="font-mono font-black text-sm text-[#1C1917]">₹{cartSubtotal.toFixed(2)}</span>
+                      </div>
+                      {restaurant?.upiId && (
+                        <p className="text-[10px] font-mono text-slate-500 font-bold">UPI ID: {restaurant.upiId}</p>
+                      )}
+                    </div>
+
+                    {/* Mobile UPI Button */}
+                    {(restaurant?.upiId || lastPlacedOrder?.restaurant?.upiId) && (
+                      <a
+                        href={
+                          upiDeepLink ||
+                          `upi://pay?pa=${encodeURIComponent(restaurant?.upiId || '')}&pn=${encodeURIComponent(restaurant?.upiPayeeName || restaurant?.name || 'Cafe')}&am=${cartSubtotal.toFixed(2)}&cu=INR&tn=CafeOrder`
+                        }
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center justify-center gap-2 px-4 py-3 bg-[#5E6F58] hover:bg-[#4E5D49] text-white font-bold rounded-xl text-xs uppercase tracking-wider transition-all shadow-md w-full text-center cursor-pointer"
+                      >
+                        <ExternalLink size={16} />
+                        Open in UPI App (GPay / PhonePe / Paytm)
+                      </a>
+                    )}
+
+                    <div className="pt-2 border-t border-[#EAE8E4]">
+                      <button
+                        onClick={() => handleCheckout('UPI')}
+                        disabled={placingOrder}
+                        className="w-full py-3.5 bg-[#5E6F58] hover:bg-[#4E5D49] disabled:opacity-50 text-white font-bold rounded-xl text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-md cursor-pointer"
+                      >
+                        {placingOrder ? <Loader2 className="animate-spin" size={14} /> : <CheckCircle2 size={16} />}
+                        I've Made the Payment
+                      </button>
+                      
+                      <p className="text-[10px] text-slate-600 font-medium leading-relaxed bg-amber-500/10 border border-amber-500/20 p-2 rounded-xl mt-2.5 text-left">
+                        💡 <strong>Please note:</strong> Please only click this after completing your payment. The cafe will verify before your order is prepared.
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>

@@ -930,7 +930,7 @@ export default function PublicMenu() {
           >
             <div 
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-md bg-white border-x border-[#EAE8E4] h-full flex flex-col shadow-2xl overflow-hidden"
+              className="w-full max-w-md bg-white border-x border-[#EAE8E4] h-full max-h-[100dvh] flex flex-col shadow-2xl overflow-hidden"
             >
               
               {/* Drawer Header */}

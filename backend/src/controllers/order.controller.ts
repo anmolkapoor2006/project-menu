@@ -12,13 +12,18 @@ const orderItemInputSchema = z.object({
 });
 
 const placeOrderSchema = z.object({
+  customerName: z.string().min(1, 'Please enter your name so the cafe can call you when ready'),
   tableNumber: z.string().optional().nullable(),
+  paymentMethod: z.enum(['COUNTER', 'UPI']).optional().default('COUNTER'),
   items: z.array(orderItemInputSchema).min(1, 'Order must contain at least 1 item'),
 });
 
 const updateStatusSchema = z.object({
   status: z.nativeEnum(OrderStatus),
 });
+
+// Helper threshold for 15-minute unverified UPI payments
+const EXPIRY_MS = 15 * 60 * 1000;
 
 export async function placeOrder(req: Request, res: Response) {
   try {
@@ -37,6 +42,10 @@ export async function placeOrder(req: Request, res: Response) {
       return res.status(400).json({ error: 'The kitchen is currently paused and not accepting new orders right now. Please speak to staff.' });
     }
 
+    const initialStatus = body.paymentMethod === 'UPI' 
+      ? OrderStatus.PAYMENT_PENDING_VERIFICATION 
+      : OrderStatus.RECEIVED;
+
     // Fetch the menu items from the DB to get official prices
     const menuItemIds = body.items.map((i) => i.menuItemId);
     const dbItems = await prisma.menuItem.findMany({
@@ -50,8 +59,10 @@ export async function placeOrder(req: Request, res: Response) {
       const order = await tx.order.create({
         data: {
           restaurantId: restaurant.id,
-          tableNumber: body.tableNumber || null,
-          status: OrderStatus.RECEIVED,
+          customerName: body.customerName ? body.customerName.trim() : null,
+          tableNumber: body.tableNumber ? body.tableNumber.trim() : null,
+          paymentMethod: body.paymentMethod || 'COUNTER',
+          status: initialStatus,
         }
       });
 
@@ -76,6 +87,9 @@ export async function placeOrder(req: Request, res: Response) {
       const fullOrder = await tx.order.findUnique({
         where: { id: order.id },
         include: {
+          restaurant: {
+            select: { id: true, name: true, upiId: true, upiPayeeName: true, upiQrImageUrl: true }
+          },
           items: {
             include: {
               menuItem: {
@@ -107,6 +121,37 @@ export async function placeOrder(req: Request, res: Response) {
     }
     console.error(error);
     return res.status(500).json({ error: error instanceof Error ? error.message : 'Internal server error' });
+  }
+}
+
+export async function getOrderById(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+
+    const order = await prisma.order.findUnique({
+      where: { id },
+      include: {
+        restaurant: {
+          select: { id: true, name: true, upiId: true, upiPayeeName: true, upiQrImageUrl: true }
+        },
+        items: {
+          include: {
+            menuItem: {
+              select: { name: true, imageUrl: true }
+            }
+          }
+        }
+      }
+    });
+
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    return res.json({ order });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 }
 
@@ -160,6 +205,9 @@ export async function updateOrderStatus(req: AuthenticatedRequest, res: Response
       where: { id },
       data: { status: body.status },
       include: {
+        restaurant: {
+          select: { name: true }
+        },
         items: {
           include: {
             menuItem: {
@@ -172,6 +220,7 @@ export async function updateOrderStatus(req: AuthenticatedRequest, res: Response
 
     try {
       const io = getIO();
+      // Emit update to restaurant room (kitchen dashboard)
       io.to(`restaurant_${order.restaurantId}`).emit('order_updated', updated);
     } catch (wsError) {
       console.error(wsError);

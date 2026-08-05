@@ -1,9 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
+import QRCode from 'qrcode';
+import io from 'socket.io-client';
 import api from '../api/api';
 import { 
   Store, Phone, MapPin, Search, Leaf, AlertCircle, Loader2, 
-  ShoppingCart, Plus, Minus, X, Check, Utensils, ClipboardList, MessageCircle, Bell 
+  ShoppingCart, Plus, Minus, X, Check, Utensils, ClipboardList, MessageCircle, Bell,
+  QrCode, ExternalLink, Clock, CheckCircle2
 } from 'lucide-react';
 
 interface MenuItem {
@@ -30,6 +33,9 @@ interface Restaurant {
   logoUrl: string | null;
   address: string | null;
   contactNumber: string | null;
+  upiId?: string | null;
+  upiPayeeName?: string | null;
+  upiQrImageUrl?: string | null;
   isAcceptingOrders: boolean;
   categories: MenuCategory[];
 }
@@ -57,7 +63,10 @@ export default function PublicMenu() {
   // Cart State
   const [cart, setCart] = useState<CartItem[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
-  const [tableNumber, setTableNumber] = useState('');
+  const [customerName, setCustomerName] = useState('');
+  const [nameError, setNameError] = useState('');
+  const tableNumber = '';
+  const [paymentMethod, setPaymentMethod] = useState<'COUNTER' | 'UPI'>('COUNTER');
 
   // Call Staff Modal State
   const [showCallStaffModal, setShowCallStaffModal] = useState(false);
@@ -66,14 +75,39 @@ export default function PublicMenu() {
   const [callingStaff, setCallingStaff] = useState(false);
   const [staffCalledSuccess, setStaffCalledSuccess] = useState('');
 
-  // Order Submission State
+  // Order Submission & Payment State
   const [placingOrder, setPlacingOrder] = useState(false);
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [lastPlacedOrder, setLastPlacedOrder] = useState<any>(null);
   const [orderError, setOrderError] = useState('');
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [upiQrCodeUrl, setUpiQrCodeUrl] = useState<string>('');
+  const [upiDeepLink, setUpiDeepLink] = useState<string>('');
+  const [confirmedToast, setConfirmedToast] = useState<string>('');
 
   const categoryRefs = useRef<{ [key: string]: HTMLElement | null }>({});
   const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
+  const playBeep = () => {
+    try {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      if (ctx.state === 'suspended') {
+        ctx.resume();
+      }
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(659.25, ctx.currentTime);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      gain.gain.setValueAtTime(0.25, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.3);
+    } catch (e) {
+      console.warn(e);
+    }
+  };
 
   const handleSendStaffCall = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -82,12 +116,12 @@ export default function PublicMenu() {
 
     try {
       await api.post(`/api/public/menu/${slug}/call-staff`, {
-        tableNumber: callStaffTable || tableNumber || 'Counter',
+        tableNumber: callStaffTable || tableNumber || customerName || 'Counter',
         requestType: callStaffType,
       });
 
       setShowCallStaffModal(false);
-      setStaffCalledSuccess(`Staff alerted for Table ${callStaffTable || tableNumber || 'Counter'}!`);
+      setStaffCalledSuccess(`Staff alerted for Table ${callStaffTable || tableNumber || customerName || 'Counter'}!`);
       setTimeout(() => setStaffCalledSuccess(''), 5000);
     } catch (err) {
       console.error('Failed to call staff', err);
@@ -97,6 +131,7 @@ export default function PublicMenu() {
     }
   };
 
+  // Load menu and log view
   useEffect(() => {
     async function loadMenuAndLogView() {
       if (!slug) return;
@@ -111,6 +146,26 @@ export default function PublicMenu() {
 
         const src = searchParams.get('src') || 'direct_link';
         await api.post(`/api/public/menu/${slug}/view-event?src=${src}`);
+
+        // Check if user requested a fresh start/reset link
+        const isFreshStart = searchParams.get('reset') === 'true' || searchParams.get('fresh') === 'true';
+        if (isFreshStart && slug) {
+          localStorage.removeItem(`last_order_${slug}`);
+        }
+
+        // If URL or localStorage has orderId, load existing order status for persistence (unless fresh start)
+        const existingOrderId = !isFreshStart && (searchParams.get('orderId') || localStorage.getItem(`last_order_${slug}`));
+        if (existingOrderId) {
+          try {
+            const orderRes = await api.get(`/api/public/orders/${existingOrderId}`);
+            if (orderRes.data.order) {
+              setLastPlacedOrder(orderRes.data.order);
+              setOrderPlaced(true);
+            }
+          } catch (e) {
+            console.warn('Could not restore previous order', e);
+          }
+        }
       } catch (err: any) {
         console.error(err);
         setError(err.response?.data?.error || 'Menu could not be loaded.');
@@ -120,6 +175,79 @@ export default function PublicMenu() {
     }
     loadMenuAndLogView();
   }, [slug, searchParams]);
+
+  // Generate UPI QR & Deep link dynamically when order, total, or cart changes
+  useEffect(() => {
+    async function generateUPIQR() {
+      const upiId = restaurant?.upiId || lastPlacedOrder?.restaurant?.upiId;
+      if (!upiId) return;
+
+      const payeeName = restaurant?.upiPayeeName || lastPlacedOrder?.restaurant?.upiPayeeName || restaurant?.name || 'Cafe';
+      const subtotalAmount = cart.reduce((sum, item) => sum + parseFloat(item.menuItem.price) * item.quantity, 0);
+      const currentTotal = lastPlacedOrder
+        ? lastPlacedOrder.items.reduce((sum: number, item: any) => sum + parseFloat(item.priceAtOrder) * item.quantity, 0).toFixed(2)
+        : subtotalAmount.toFixed(2);
+      const noteStr = lastPlacedOrder ? `Order ${lastPlacedOrder.id.slice(-6)}` : 'Cafe Order';
+
+      const link = `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(payeeName)}&am=${currentTotal}&cu=INR&tn=${encodeURIComponent(noteStr)}`;
+      setUpiDeepLink(link);
+
+      try {
+        const qrDataUrl = await QRCode.toDataURL(link, {
+          width: 320,
+          margin: 2,
+          color: { dark: '#1c1917', light: '#ffffff' },
+        });
+        setUpiQrCodeUrl(qrDataUrl);
+      } catch (e) {
+        console.error('Failed to generate UPI QR code', e);
+      }
+    }
+    generateUPIQR();
+  }, [lastPlacedOrder, restaurant, cart]);
+
+  // Real-time socket updates for active order
+  useEffect(() => {
+    if (!restaurant?.id || !lastPlacedOrder?.id) return;
+
+    const socket = io(API_BASE_URL);
+
+    socket.on('connect', () => {
+      socket.emit('join_restaurant', restaurant.id);
+    });
+
+    socket.on('order_updated', (updatedOrder: any) => {
+      if (updatedOrder.id === lastPlacedOrder.id) {
+        const prevStatus = lastPlacedOrder.status;
+        setLastPlacedOrder(updatedOrder);
+
+        if (prevStatus === 'PAYMENT_PENDING_VERIFICATION' && updatedOrder.status === 'RECEIVED') {
+          playBeep();
+          const toastMsg = `✅ Payment Confirmed by ${restaurant.name} — Order Received!`;
+          setConfirmedToast(toastMsg);
+          setTimeout(() => setConfirmedToast(''), 8000);
+        } else if (updatedOrder.status === 'PREPARING' || updatedOrder.status === 'SERVED') {
+          playBeep();
+        }
+      }
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [restaurant?.id, lastPlacedOrder?.id, API_BASE_URL]);
+
+  // Lock background page scroll when drawer or modal is open
+  useEffect(() => {
+    if (cartOpen || showPaymentModal || showCallStaffModal) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [cartOpen, showPaymentModal, showCallStaffModal]);
 
   const handleCategoryScroll = (categoryId: string) => {
     setActiveCategory(categoryId);
@@ -182,7 +310,7 @@ export default function PublicMenu() {
 
   const getWhatsAppLink = (order: any) => {
     if (!order) return '#';
-    const tableText = order.tableNumber ? `Table ${order.tableNumber}` : 'Direct Order / Counter';
+    const customerText = order.customerName ? `Customer: ${order.customerName}` : (order.tableNumber ? `Table ${order.tableNumber}` : 'Direct Order');
     const itemsList = order.items
       .map((item: any) => {
         const itemTotal = (parseFloat(item.priceAtOrder) * item.quantity).toFixed(2);
@@ -195,8 +323,11 @@ export default function PublicMenu() {
       .reduce((sum: number, item: any) => sum + parseFloat(item.priceAtOrder) * item.quantity, 0)
       .toFixed(2);
 
+    const payStatusStr = order.status === 'PAYMENT_PENDING_VERIFICATION' ? 'Paid via UPI (Pending Cafe Verification)' : 'Pay at Counter';
+
     const message = `🛒 *New Order from ${restaurant?.name || 'Cafe'}*\n` +
-      `📍 *Order Type/Table:* ${tableText}\n` +
+      `👤 *${customerText}*\n` +
+      `💳 *Payment Method:* ${payStatusStr}\n` +
       `--------------------------------\n` +
       `*Items:* \n${itemsList}\n` +
       `--------------------------------\n` +
@@ -209,13 +340,25 @@ export default function PublicMenu() {
       : `https://wa.me/?text=${encodeURIComponent(message)}`;
   };
 
-  const handleCheckout = async () => {
+  const handleCheckout = async (selectedMethodOverride?: 'COUNTER' | 'UPI') => {
     if (cart.length === 0) return;
+    
+    if (!customerName.trim()) {
+      setNameError('Please enter your name so the cafe can call you when ready.');
+      return;
+    }
+    setNameError('');
+
     setPlacingOrder(true);
     setOrderError('');
 
+    const isUpiAvailable = Boolean(restaurant?.upiQrImageUrl || restaurant?.upiId);
+    const selectedMethod = selectedMethodOverride || ((isUpiAvailable && paymentMethod === 'UPI') ? 'UPI' : 'COUNTER');
+
     const payload = {
+      customerName: customerName.trim(),
       tableNumber: tableNumber.trim() || null,
+      paymentMethod: selectedMethod,
       items: cart.map((i) => ({
         menuItemId: i.menuItem.id,
         quantity: i.quantity,
@@ -228,16 +371,12 @@ export default function PublicMenu() {
       const placedOrder = response.data.order;
       setLastPlacedOrder(placedOrder);
       setOrderPlaced(true);
+      if (slug) {
+        localStorage.setItem(`last_order_${slug}`, placedOrder.id);
+      }
       setCart([]);
       setCartOpen(false);
-
-      // Auto trigger WhatsApp redirect if contact number exists
-      const waLink = getWhatsAppLink(placedOrder);
-      if (waLink && waLink !== '#') {
-        setTimeout(() => {
-          window.open(waLink, '_blank');
-        }, 600);
-      }
+      setShowPaymentModal(false);
     } catch (err: any) {
       setOrderError(err.response?.data?.error || 'Failed to submit order.');
     } finally {
@@ -265,25 +404,134 @@ export default function PublicMenu() {
   }
 
   if (orderPlaced && lastPlacedOrder) {
-    const waUrl = getWhatsAppLink(lastPlacedOrder);
+    const isUPIPending = lastPlacedOrder.status === 'PAYMENT_PENDING_VERIFICATION';
+    const isCancelled = lastPlacedOrder.status === 'CANCELLED';
+    const orderAgeMinutes = (Date.now() - new Date(lastPlacedOrder.createdAt).getTime()) / (60 * 1000);
+    const isExpiredSafeguard = (isUPIPending || isCancelled) && orderAgeMinutes > 15;
+
+    const orderTotal = lastPlacedOrder.items
+      .reduce((sum: number, item: any) => sum + parseFloat(item.priceAtOrder) * item.quantity, 0)
+      .toFixed(2);
+    const payeeName = restaurant?.upiPayeeName || lastPlacedOrder.restaurant?.upiPayeeName || restaurant?.name || 'Cafe';
 
     return (
       <div className="min-h-screen bg-[#FAF9F5] text-[#1C1917] pb-16 flex justify-center">
-        <div className="w-full max-w-md bg-white min-h-screen flex flex-col shadow-[0_4px_30px_rgb(28,25,23,0.02)] p-6 border-x border-[#EAE8E4] justify-center items-center space-y-5 text-center">
-          <div className="w-20 h-20 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 animate-pulse">
-            <Check size={40} />
-          </div>
+        <div className="w-full max-w-md bg-white min-h-screen flex flex-col shadow-[0_4px_30px_rgb(28,25,23,0.02)] p-6 border-x border-[#EAE8E4] justify-start items-center space-y-5 text-center overflow-y-auto">
           
-          <div className="space-y-2">
-            <h1 className="text-2xl font-bold text-[#1C1917] font-serif-display">Order Sent to Kitchen</h1>
-            <p className="text-xs text-[#7A7571] uppercase tracking-wider font-semibold">Your order is being prepared</p>
-            {lastPlacedOrder.tableNumber && (
-              <p className="text-xs text-[#5E6F58] bg-[#5E6F58]/10 border border-[#5E6F58]/20 py-1 px-3.5 rounded-full inline-block font-bold">
-                Table: {lastPlacedOrder.tableNumber}
-              </p>
-            )}
-          </div>
+          {/* Real-time Confirmation Toast Alert Banner */}
+          {confirmedToast && (
+            <div className="w-full bg-emerald-600 text-white text-xs p-4 rounded-2xl font-bold shadow-lg flex items-center gap-3 animate-bounce border border-emerald-500">
+              <CheckCircle2 size={24} className="shrink-0 text-white" />
+              <div className="text-left leading-tight">
+                <span className="block font-black text-sm uppercase tracking-wider">Payment Verified!</span>
+                <span>{confirmedToast}</span>
+              </div>
+            </div>
+          )}
 
+          {/* Header Status Icons & Title */}
+          {isExpiredSafeguard ? (
+            <div className="space-y-3 pt-4">
+              <div className="w-20 h-20 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-700 mx-auto">
+                <Clock size={40} />
+              </div>
+              <h1 className="text-2xl font-bold text-[#1C1917] font-serif-display">Waiting for Confirmation</h1>
+              <div className="bg-amber-500/10 border border-amber-500/30 text-amber-900 text-xs p-4 rounded-2xl text-left space-y-1 font-medium">
+                <span className="font-bold text-amber-950 block">⚠️ Check with Staff</span>
+                <p>We haven't confirmed your payment yet — please check with the cafe staff directly.</p>
+              </div>
+            </div>
+          ) : isUPIPending ? (
+            <div className="space-y-2 pt-2">
+              <div className="w-16 h-16 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-600 mx-auto animate-pulse">
+                <Clock size={36} />
+              </div>
+              <h1 className="text-2xl font-bold text-[#1C1917] font-serif-display">Payment Submitted</h1>
+              <div className="bg-amber-500/10 border border-amber-500/30 text-amber-900 text-xs p-3.5 rounded-2xl font-semibold">
+                Waiting for cafe to confirm receipt.
+              </div>
+              {lastPlacedOrder.customerName && (
+                <p className="text-xs font-bold text-[#5E6F58] bg-[#5E6F58]/10 border border-[#5E6F58]/20 py-1 px-3.5 rounded-full inline-block">
+                  Customer: {lastPlacedOrder.customerName}
+                </p>
+              )}
+              <p className="text-[11px] text-[#7A7571] max-w-xs">
+                Do not close this page. The cafe owner is verifying your payment.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2 pt-2">
+              <div className="w-20 h-20 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 mx-auto animate-pulse">
+                <Check size={40} />
+              </div>
+              <h1 className="text-2xl font-bold text-[#1C1917] font-serif-display">Order Sent to Kitchen</h1>
+              <p className="text-xs text-[#7A7571] uppercase tracking-wider font-semibold">
+                Status: <span className="text-[#5E6F58] font-bold">{lastPlacedOrder.status}</span>
+              </p>
+              {(lastPlacedOrder.customerName || lastPlacedOrder.tableNumber) && (
+                <p className="text-xs text-[#5E6F58] bg-[#5E6F58]/10 border border-[#5E6F58]/20 py-1 px-3.5 rounded-full inline-block font-bold">
+                  {lastPlacedOrder.customerName ? `Customer: ${lastPlacedOrder.customerName}` : `Table: ${lastPlacedOrder.tableNumber}`}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* UPI QR Display Card if UPI selected and pending verification */}
+          {isUPIPending && (
+            <div className="bg-[#FAF9F5] border border-[#EAE8E4] w-full p-5 rounded-2xl space-y-4 shadow-sm text-center">
+              <div className="flex items-center justify-between border-b border-[#EAE8E4] pb-3">
+                <span className="text-xs font-bold text-[#7A7571] uppercase tracking-wider flex items-center gap-1.5">
+                  <QrCode size={16} className="text-[#5E6F58]" />
+                  Scan UPI QR to Pay
+                </span>
+                <span className="text-sm font-black font-mono text-[#5E6F58]">₹{orderTotal}</span>
+              </div>
+
+              {/* QR Image */}
+              <div className="bg-white p-3 rounded-2xl border border-[#EAE8E4] inline-block shadow-inner">
+                {(restaurant.upiQrImageUrl || lastPlacedOrder.restaurant?.upiQrImageUrl) ? (
+                  <img 
+                    src={
+                      (restaurant.upiQrImageUrl || lastPlacedOrder.restaurant?.upiQrImageUrl).startsWith('http')
+                        ? (restaurant.upiQrImageUrl || lastPlacedOrder.restaurant?.upiQrImageUrl)
+                        : `${API_BASE_URL}${restaurant.upiQrImageUrl || lastPlacedOrder.restaurant?.upiQrImageUrl}`
+                    } 
+                    alt="Cafe Official UPI QR Code" 
+                    className="w-48 h-48 object-contain mx-auto" 
+                  />
+                ) : upiQrCodeUrl ? (
+                  <img src={upiQrCodeUrl} alt="UPI QR Code" className="w-48 h-48 object-contain mx-auto" />
+                ) : (
+                  <Loader2 className="animate-spin text-[#5E6F58] mx-auto" size={32} />
+                )}
+              </div>
+
+              <div className="space-y-1 text-xs text-[#7A7571]">
+                <p className="font-semibold text-[#1C1917]">Payee: {payeeName}</p>
+                {(restaurant.upiId || lastPlacedOrder.restaurant?.upiId) && (
+                  <p className="font-mono text-[11px] text-[#5E6F58] font-bold">{restaurant.upiId || lastPlacedOrder.restaurant?.upiId}</p>
+                )}
+              </div>
+
+              {/* Mobile "Open in UPI App" Deep-link Button */}
+              {(restaurant.upiId || lastPlacedOrder.restaurant?.upiId) && (
+                <a
+                  href={
+                    upiDeepLink ||
+                    `upi://pay?pa=${encodeURIComponent(restaurant.upiId || lastPlacedOrder.restaurant?.upiId || '')}&pn=${encodeURIComponent(restaurant.upiPayeeName || lastPlacedOrder.restaurant?.upiPayeeName || restaurant.name || 'Cafe')}&am=${orderTotal}&cu=INR&tn=Order${lastPlacedOrder.id.slice(-6)}`
+                  }
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full py-3 px-4 bg-[#5E6F58] hover:bg-[#4E5D49] text-white font-bold rounded-xl text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer"
+                >
+                  <ExternalLink size={16} />
+                  Open in UPI App (GPay / PhonePe / Paytm)
+                </a>
+              )}
+            </div>
+          )}
+
+          {/* Order Summary Card */}
           <div className="bg-[#FAF9F5] border border-[#EAE8E4] w-full p-5 rounded-2xl text-left space-y-3">
             <h3 className="text-xs font-bold text-[#7A7571] uppercase tracking-widest flex items-center gap-1.5">
               <ClipboardList size={14} className="text-[#5E6F58]" />
@@ -300,26 +548,42 @@ export default function PublicMenu() {
                 </div>
               ))}
             </div>
+            <div className="pt-2 border-t border-[#EAE8E4] flex justify-between items-center text-xs font-bold">
+              <span>Total Amount</span>
+              <span className="font-mono text-[#5E6F58] text-sm font-black">₹{orderTotal}</span>
+            </div>
           </div>
 
           {/* WhatsApp Action Card */}
-          <a
-            href={waUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-md"
+          <button
+            type="button"
+            onClick={() => {
+              const waUrl = getWhatsAppLink(lastPlacedOrder);
+              if (waUrl && waUrl !== '#') {
+                window.open(waUrl, '_blank', 'noopener,noreferrer');
+              }
+            }}
+            className="w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-md cursor-pointer"
           >
             <MessageCircle size={18} />
             Send Order Copy via WhatsApp
-          </a>
+          </button>
 
-          <div className="bg-[#5E6F58]/10 border border-[#5E6F58]/20 p-4 rounded-2xl w-full text-center space-y-1">
-            <span className="text-[#5E6F58] font-bold block text-xs uppercase tracking-wider">Please pay at the counter</span>
-            <p className="text-[10px] text-slate-500 leading-normal">Provide your table number to complete payment when dining is finished.</p>
-          </div>
+          {!isUPIPending && (
+            <div className="bg-[#5E6F58]/10 border border-[#5E6F58]/20 p-4 rounded-2xl w-full text-center space-y-1">
+              <span className="text-[#5E6F58] font-bold block text-xs uppercase tracking-wider">Please pay at the counter</span>
+              <p className="text-[10px] text-slate-500 leading-normal">Provide your table number to complete payment when dining is finished.</p>
+            </div>
+          )}
 
           <button
-            onClick={() => setOrderPlaced(false)}
+            onClick={() => {
+              if (slug) {
+                localStorage.removeItem(`last_order_${slug}`);
+              }
+              setOrderPlaced(false);
+              setLastPlacedOrder(null);
+            }}
             className="w-full py-3 bg-[#F6F4F0] hover:bg-[#EAE8E4] text-[#1C1917] font-bold rounded-xl text-xs uppercase tracking-wider transition-all border border-[#EAE8E4]"
           >
             Order More Food
@@ -645,131 +909,365 @@ export default function PublicMenu() {
 
         {/* Sliding Cart Drawer */}
         {cartOpen && (
-          <div className="fixed inset-0 z-50 flex justify-center bg-black/45 backdrop-blur-sm">
-            <div className="w-full max-w-md bg-white border-x border-[#EAE8E4] h-full flex flex-col justify-between shadow-2xl">
+          <div className="fixed inset-0 z-50 flex justify-center bg-black/50 backdrop-blur-sm">
+            <div className="w-full max-w-md bg-white border-x border-[#EAE8E4] h-full flex flex-col shadow-2xl overflow-hidden">
               
               {/* Header */}
-              <div className="p-5 border-b border-[#EAE8E4] flex justify-between items-center bg-gradient-to-b from-[#F6F4F0] to-white">
+              <div className="p-5 border-b border-[#EAE8E4] flex justify-between items-center bg-gradient-to-b from-[#F6F4F0] to-white shrink-0">
                 <div className="flex items-center gap-2 text-[#5E6F58]">
                   <Utensils size={18} />
                   <h2 className="text-xs font-bold text-[#1C1917] uppercase tracking-wider">Your Basket</h2>
                 </div>
                 <button
                   onClick={() => setCartOpen(false)}
-                  className="p-1.5 text-[#7A7571] hover:text-[#1C1917] hover:bg-[#F6F4F0] rounded-lg transition-all"
+                  className="p-1.5 text-[#7A7571] hover:text-[#1C1917] hover:bg-[#F6F4F0] rounded-lg transition-all cursor-pointer"
                 >
                   <X size={20} />
                 </button>
               </div>
 
-              {orderError && (
-                <div className="mx-5 mt-4 bg-red-500/5 border border-red-500/20 text-red-750 text-xs p-3.5 rounded-xl">
-                  {orderError}
-                </div>
-              )}
+              {/* Drawer Scrollable Body (Basket items + Payment section) */}
+              <div className="flex-1 overflow-y-auto p-5 space-y-5 overscroll-contain">
+                {orderError && (
+                  <div className="bg-red-500/5 border border-red-500/20 text-red-750 text-xs p-3.5 rounded-xl">
+                    {orderError}
+                  </div>
+                )}
 
-              {/* Basket list */}
-              <div className="flex-1 overflow-y-auto p-5 space-y-4">
-                {cart.map((item) => (
-                  <div key={item.menuItem.id} className="bg-[#F6F4F0]/30 border border-[#EAE8E4] p-4 rounded-2xl space-y-3">
-                    <div className="flex justify-between items-start gap-4">
-                      <div>
-                        <h4 className="font-bold text-[#1C1917] text-xs leading-tight">{item.menuItem.name}</h4>
-                        <span className="text-xs text-[#5E6F58] font-bold font-mono mt-1 block">
-                          ₹{parseFloat(item.menuItem.price).toFixed(2)}
-                        </span>
+                {/* Basket list */}
+                <div className="space-y-4">
+                  <div className="text-[10px] uppercase font-bold tracking-wider text-[#7A7571]">
+                    Items in your basket ({cartTotalItems})
+                  </div>
+                  {cart.map((item) => (
+                    <div key={item.menuItem.id} className="bg-[#F6F4F0]/30 border border-[#EAE8E4] p-4 rounded-2xl space-y-3">
+                      <div className="flex justify-between items-start gap-4">
+                        <div>
+                          <h4 className="font-bold text-[#1C1917] text-xs leading-tight">{item.menuItem.name}</h4>
+                          <span className="text-xs text-[#5E6F58] font-bold font-mono mt-1 block">
+                            ₹{parseFloat(item.menuItem.price).toFixed(2)}
+                          </span>
+                        </div>
+                        
+                        {/* Quantity adjustments */}
+                        <div className="flex items-center gap-2 border border-[#EAE8E4] bg-white rounded-lg px-1.5 py-0.5 shrink-0">
+                          <button
+                            onClick={() => updateCartQuantity(item.menuItem.id, -1)}
+                            className="p-1 text-[#7A7571] hover:text-[#1C1917] transition-all rounded cursor-pointer"
+                          >
+                            <Minus size={11} />
+                          </button>
+                          <span className="text-xs font-bold text-[#1C1917] w-5 text-center font-mono">{item.quantity}</span>
+                          <button
+                            onClick={() => updateCartQuantity(item.menuItem.id, 1)}
+                            className="p-1 text-[#7A7571] hover:text-[#1C1917] transition-all rounded cursor-pointer"
+                          >
+                            <Plus size={11} />
+                          </button>
+                        </div>
                       </div>
-                      
-                      {/* Quantity adjustments */}
-                      <div className="flex items-center gap-2 border border-[#EAE8E4] bg-white rounded-lg px-1.5 py-0.5 shrink-0">
-                        <button
-                          onClick={() => updateCartQuantity(item.menuItem.id, -1)}
-                          className="p-1 text-[#7A7571] hover:text-[#1C1917] transition-all rounded"
-                        >
-                          <Minus size={11} />
-                        </button>
-                        <span className="text-xs font-bold text-[#1C1917] w-5 text-center font-mono">{item.quantity}</span>
-                        <button
-                          onClick={() => updateCartQuantity(item.menuItem.id, 1)}
-                          className="p-1 text-[#7A7571] hover:text-[#1C1917] transition-all rounded"
-                        >
-                          <Plus size={11} />
-                        </button>
+
+                      <div className="space-y-1.5">
+                        <input
+                          type="text"
+                          value={item.notes}
+                          onChange={(e) => updateItemNotes(item.menuItem.id, e.target.value)}
+                          placeholder="Special instructions (e.g. no spice, extra cheese)"
+                          className="w-full bg-white border border-[#EAE8E4] rounded-xl px-3 py-2 text-[10px] text-slate-700 placeholder-slate-400 focus:outline-none focus:border-[#5E6F58] transition-all"
+                        />
+                        <div className="flex flex-wrap gap-1">
+                          {['🌶️ Extra Spicy', '🚫 No Onion', '🧀 Extra Cheese', '🧊 Less Ice', '📦 Pack Separately'].map((chip) => (
+                            <button
+                              key={chip}
+                              type="button"
+                              onClick={() => {
+                                const currentNotes = item.notes ? item.notes.trim() : '';
+                                if (currentNotes.includes(chip)) {
+                                  updateItemNotes(
+                                    item.menuItem.id,
+                                    currentNotes.replace(chip, '').replace(/^,\s*|,\s*$/g, '').trim()
+                                  );
+                                } else {
+                                  updateItemNotes(
+                                    item.menuItem.id,
+                                    currentNotes ? `${currentNotes}, ${chip}` : chip
+                                  );
+                                }
+                              }}
+                              className={`text-[9px] px-2 py-0.5 rounded-lg border transition-all cursor-pointer ${
+                                item.notes?.includes(chip)
+                                  ? 'bg-[#5E6F58] text-white border-[#5E6F58] font-bold'
+                                  : 'bg-white text-[#7A7571] border-[#EAE8E4] hover:border-[#D5D2CC]'
+                              }`}
+                            >
+                              {chip}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     </div>
+                  ))}
+                </div>
 
-                    <div className="space-y-1.5">
+                {/* Drawer Footer / Payment Section */}
+                <div className="pt-4 border-t border-[#EAE8E4] space-y-4">
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-[10px] font-bold text-[#7A7571] uppercase tracking-wider">
+                        Your Name <span className="text-red-500">*</span> <span className="text-[9px] text-slate-400 font-normal lowercase">(so the cafe can call you when ready)</span>
+                      </label>
                       <input
                         type="text"
-                        value={item.notes}
-                        onChange={(e) => updateItemNotes(item.menuItem.id, e.target.value)}
-                        placeholder="Special instructions (e.g. no spice, extra cheese)"
-                        className="w-full bg-white border border-[#EAE8E4] rounded-xl px-3 py-2 text-[10px] text-slate-700 placeholder-slate-400 focus:outline-none focus:border-[#5E6F58] transition-all"
+                        value={customerName}
+                        onChange={(e) => {
+                          setCustomerName(e.target.value);
+                          if (nameError) setNameError('');
+                        }}
+                        placeholder="e.g. Rahul, Priya, Alex"
+                        className="mt-1.5 block w-full px-4 py-2.5 bg-white border border-[#EAE8E4] rounded-xl text-[#1C1917] focus:outline-none focus:ring-1 focus:ring-[#5E6F58] text-xs transition-all font-medium"
                       />
-                      <div className="flex flex-wrap gap-1">
-                        {['🌶️ Extra Spicy', '🚫 No Onion', '🧀 Extra Cheese', '🧊 Less Ice', '📦 Pack Separately'].map((chip) => (
+                      {nameError && <p className="text-[10px] text-red-600 font-bold mt-1">{nameError}</p>}
+                    </div>
+
+                    {/* Payment Method Selector */}
+                    {restaurant?.upiId && (
+                      <div>
+                        <label className="block text-[10px] font-bold text-[#7A7571] uppercase tracking-wider mb-1.5">
+                          Select Payment Method
+                        </label>
+                        <div className="grid grid-cols-2 gap-2">
                           <button
-                            key={chip}
                             type="button"
-                            onClick={() => {
-                              const currentNotes = item.notes ? item.notes.trim() : '';
-                              if (currentNotes.includes(chip)) {
-                                updateItemNotes(
-                                  item.menuItem.id,
-                                  currentNotes.replace(chip, '').replace(/^,\s*|,\s*$/g, '').trim()
-                                );
-                              } else {
-                                updateItemNotes(
-                                  item.menuItem.id,
-                                  currentNotes ? `${currentNotes}, ${chip}` : chip
-                                );
-                              }
-                            }}
-                            className={`text-[9px] px-2 py-0.5 rounded-lg border transition-all ${
-                              item.notes?.includes(chip)
-                                ? 'bg-[#5E6F58] text-white border-[#5E6F58] font-bold'
-                                : 'bg-white text-[#7A7571] border-[#EAE8E4] hover:border-[#D5D2CC]'
+                            onClick={() => setPaymentMethod('COUNTER')}
+                            className={`p-3 rounded-xl border text-left transition-all flex flex-col justify-between cursor-pointer ${
+                              paymentMethod === 'COUNTER'
+                                ? 'bg-[#5E6F58]/10 border-[#5E6F58] text-[#5E6F58] shadow-sm font-bold'
+                                : 'bg-white border-[#EAE8E4] text-[#7A7571] hover:border-[#D5D2CC]'
                             }`}
                           >
-                            {chip}
+                            <div className="flex items-center justify-between">
+                              <Store size={16} />
+                              {paymentMethod === 'COUNTER' && <Check size={14} className="text-[#5E6F58]" />}
+                            </div>
+                            <span className="text-xs font-bold mt-2">Pay at Counter</span>
                           </button>
-                        ))}
+
+                          <button
+                            type="button"
+                            onClick={() => setPaymentMethod('UPI')}
+                            className={`p-3 rounded-xl border text-left transition-all flex flex-col justify-between cursor-pointer ${
+                              paymentMethod === 'UPI'
+                                ? 'bg-[#5E6F58]/10 border-[#5E6F58] text-[#5E6F58] shadow-sm font-bold'
+                                : 'bg-white border-[#EAE8E4] text-[#7A7571] hover:border-[#D5D2CC]'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <QrCode size={16} />
+                              {paymentMethod === 'UPI' && <Check size={14} className="text-[#5E6F58]" />}
+                            </div>
+                            <span className="text-xs font-bold mt-2">Pay via UPI</span>
+                          </button>
+                        </div>
                       </div>
+                    )}
+
+                    <div className="flex justify-between items-center text-xs font-bold text-[#7A7571] pt-2 border-t border-[#EAE8E4]">
+                      <span>Subtotal</span>
+                      <span className="text-[#1C1917] font-mono font-black text-sm">₹{cartSubtotal.toFixed(2)}</span>
                     </div>
                   </div>
-                ))}
+
+                  {/* Payment Form inside Drawer */}
+                  {paymentMethod === 'COUNTER' ? (
+                    <button
+                      onClick={() => handleCheckout('COUNTER')}
+                      disabled={cart.length === 0 || placingOrder}
+                      className="w-full py-3.5 bg-[#5E6F58] hover:bg-[#4E5D49] disabled:opacity-50 text-white font-bold rounded-xl text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer"
+                    >
+                      {placingOrder && <Loader2 className="animate-spin" size={14} />}
+                      Place Order - Pay at Counter
+                    </button>
+                  ) : (
+                    <div className="bg-[#FAF9F5] border border-[#EAE8E4] p-4 rounded-2xl space-y-4 text-center">
+                      <div className="space-y-1">
+                        <span className="text-[10px] font-bold text-[#5E6F58] uppercase tracking-wider bg-[#5E6F58]/10 px-2.5 py-1 rounded-full inline-block">
+                          Scan & Pay via any UPI App
+                        </span>
+                        <h4 className="text-xs font-bold text-[#1C1917]">
+                          {restaurant?.upiPayeeName ? `Payee: ${restaurant.upiPayeeName}` : (restaurant?.name || 'Cafe')}
+                        </h4>
+                      </div>
+
+                      <div className="relative mx-auto w-56 h-56 bg-white p-3 rounded-2xl border-2 border-[#5E6F58]/20 shadow-md flex items-center justify-center">
+                        {restaurant?.upiQrImageUrl ? (
+                          <img 
+                            src={restaurant.upiQrImageUrl.startsWith('http') ? restaurant.upiQrImageUrl : `${API_BASE_URL}${restaurant.upiQrImageUrl}`} 
+                            alt="Cafe Official UPI QR Code" 
+                            className="w-full h-full object-contain rounded-xl"
+                          />
+                        ) : upiQrCodeUrl ? (
+                          <img 
+                            src={upiQrCodeUrl} 
+                            alt="Generated UPI QR Code" 
+                            className="w-full h-full object-contain rounded-xl"
+                          />
+                        ) : (
+                          <Loader2 className="animate-spin text-[#5E6F58]" size={32} />
+                        )}
+                      </div>
+
+                      <div className="space-y-1">
+                        <div className="text-xs text-[#7A7571]">
+                          Amount to Pay: <span className="font-mono font-black text-sm text-[#1C1917]">₹{cartSubtotal.toFixed(2)}</span>
+                        </div>
+                        {restaurant?.upiId && (
+                          <p className="text-[10px] font-mono text-slate-500 font-bold">UPI ID: {restaurant.upiId}</p>
+                        )}
+                      </div>
+
+                      {(restaurant?.upiId || lastPlacedOrder?.restaurant?.upiId) && (
+                        <a
+                          href={
+                            upiDeepLink ||
+                            `upi://pay?pa=${encodeURIComponent(restaurant?.upiId || '')}&pn=${encodeURIComponent(restaurant?.upiPayeeName || restaurant?.name || 'Cafe')}&am=${cartSubtotal.toFixed(2)}&cu=INR&tn=CafeOrder`
+                          }
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center justify-center gap-2 px-4 py-3 bg-[#5E6F58] hover:bg-[#4E5D49] text-white font-bold rounded-xl text-xs uppercase tracking-wider transition-all shadow-md w-full text-center cursor-pointer"
+                        >
+                          <ExternalLink size={16} />
+                          Open in UPI App (GPay / PhonePe / Paytm)
+                        </a>
+                      )}
+
+                      <div className="pt-2 border-t border-[#EAE8E4]">
+                        <button
+                          onClick={() => handleCheckout('UPI')}
+                          disabled={placingOrder}
+                          className="w-full py-3.5 bg-[#5E6F58] hover:bg-[#4E5D49] disabled:opacity-50 text-white font-bold rounded-xl text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-md cursor-pointer"
+                        >
+                          {placingOrder ? <Loader2 className="animate-spin" size={14} /> : <CheckCircle2 size={16} />}
+                          I've Made the Payment
+                        </button>
+                        
+                        <p className="text-[10px] text-slate-600 font-medium leading-relaxed bg-amber-500/10 border border-amber-500/20 p-2.5 rounded-xl mt-3 text-left">
+                          💡 <strong>Please note:</strong> Please only click this after completing your payment. The cafe will verify before your order is prepared.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Dedicated Payment Modal / Page */}
+        {showPaymentModal && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <div className="bg-white border border-[#EAE8E4] rounded-3xl max-w-md w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+              
+              {/* Modal Header */}
+              <div className="p-5 border-b border-[#EAE8E4] flex justify-between items-center bg-gradient-to-b from-[#F6F4F0] to-white">
+                <div>
+                  <h3 className="text-sm font-bold text-[#1C1917] flex items-center gap-2">
+                    <Utensils size={18} className="text-[#5E6F58]" />
+                    Checkout & Payment
+                  </h3>
+                  <p className="text-[10px] text-[#7A7571]">Select payment method before order confirmation</p>
+                </div>
+                <button 
+                  onClick={() => setShowPaymentModal(false)} 
+                  className="p-1.5 text-[#7A7571] hover:text-[#1C1917] hover:bg-[#F6F4F0] rounded-xl transition-all"
+                >
+                  <X size={18} />
+                </button>
               </div>
 
-              {/* Drawer Footer */}
-              <div className="p-5 border-t border-[#EAE8E4] space-y-4 bg-[#FAF9F5]">
-                <div className="space-y-3">
+              <div className="p-5 overflow-y-auto space-y-5">
+                
+                {/* Order Summary Pill */}
+                <div className="bg-[#FAF9F5] border border-[#EAE8E4] p-4 rounded-2xl flex justify-between items-center text-xs">
                   <div>
-                    <label className="block text-[10px] font-bold text-[#7A7571] uppercase tracking-wider">
-                      Table Number <span className="text-[9px] text-slate-400 lowercase">(Optional)</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={tableNumber}
-                      onChange={(e) => setTableNumber(e.target.value)}
-                      placeholder="e.g. 5, Bar-2, Terrace-1"
-                      className="mt-1.5 block w-full px-4 py-2.5 bg-white border border-[#EAE8E4] rounded-xl text-[#1C1917] focus:outline-none focus:ring-1 focus:ring-[#5E6F58] text-xs transition-all"
-                    />
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-[#7A7571] block">Order Summary</span>
+                    <span className="font-bold text-[#1C1917]">{cartTotalItems} item{cartTotalItems > 1 ? 's' : ''}</span>
+                    {customerName && <span className="text-[10px] text-[#5E6F58] font-semibold block">Customer: {customerName}</span>}
                   </div>
-
-                  <div className="flex justify-between items-center text-xs font-bold text-[#7A7571] pt-2 border-t border-[#EAE8E4]">
-                    <span>Subtotal</span>
-                    <span className="text-[#1C1917] font-mono font-black text-sm">₹{cartSubtotal.toFixed(2)}</span>
+                  <div className="text-right">
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-[#7A7571] block">Total Amount</span>
+                    <span className="text-base font-black font-mono text-[#5E6F58]">₹{cartSubtotal.toFixed(2)}</span>
                   </div>
                 </div>
 
-                <button
-                  onClick={handleCheckout}
-                  disabled={placingOrder || cart.length === 0}
-                  className="w-full py-3.5 bg-[#5E6F58] hover:bg-[#4E5D49] disabled:opacity-50 text-white font-bold rounded-xl text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-sm"
-                >
-                  {placingOrder && <Loader2 className="animate-spin" size={14} />}
-                  Place Order - Pay at Counter
-                </button>
+                {/* Customer Name Required Field */}
+                <div>
+                  <label className="block text-[10px] font-bold text-[#7A7571] uppercase tracking-wider">
+                    Your Name <span className="text-red-500">*</span> <span className="text-[9px] text-slate-400 font-normal lowercase">(so the cafe can call you when ready)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={customerName}
+                    onChange={(e) => {
+                      setCustomerName(e.target.value);
+                      if (nameError) setNameError('');
+                    }}
+                    placeholder="e.g. Rahul, Priya, Alex"
+                    className="mt-1 block w-full px-3.5 py-2.5 bg-white border border-[#EAE8E4] rounded-xl text-[#1C1917] focus:outline-none focus:ring-1 focus:ring-[#5E6F58] text-xs transition-all font-medium"
+                  />
+                  {nameError && <p className="text-[10px] text-red-600 font-bold mt-1">{nameError}</p>}
+                </div>
+
+                {/* Payment Option Selector */}
+                <div className="space-y-2">
+                  <label className="block text-[10px] font-bold text-[#7A7571] uppercase tracking-wider">
+                    Select Payment Method
+                  </label>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {/* Pay at Counter Option */}
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod('COUNTER')}
+                      className={`p-4 rounded-2xl border text-left transition-all flex flex-col justify-between ${
+                        paymentMethod === 'COUNTER'
+                          ? 'bg-[#5E6F58]/10 border-[#5E6F58] text-[#5E6F58] shadow-sm font-bold ring-1 ring-[#5E6F58]'
+                          : 'bg-white border-[#EAE8E4] text-[#7A7571] hover:border-[#D5D2CC]'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <Store size={20} />
+                        {paymentMethod === 'COUNTER' && <CheckCircle2 size={16} className="text-[#5E6F58]" />}
+                      </div>
+                      <div className="mt-3">
+                        <span className="text-xs font-bold block text-[#1C1917]">Pay at Counter</span>
+                        <span className="text-[9px] text-[#7A7571] block leading-tight mt-0.5">Pay cash or card at counter after order</span>
+                      </div>
+                    </button>
+
+                    {/* Pay via UPI Option (Only rendered if uploaded QR or upiId exists) */}
+                    {(restaurant?.upiQrImageUrl || restaurant?.upiId) ? (
+                      <button
+                        type="button"
+                        onClick={() => setPaymentMethod('UPI')}
+                        className={`p-4 rounded-2xl border text-left transition-all flex flex-col justify-between ${
+                          paymentMethod === 'UPI'
+                            ? 'bg-[#5E6F58]/10 border-[#5E6F58] text-[#5E6F58] shadow-sm font-bold ring-1 ring-[#5E6F58]'
+                            : 'bg-white border-[#EAE8E4] text-[#7A7571] hover:border-[#D5D2CC]'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <QrCode size={20} />
+                          {paymentMethod === 'UPI' && <CheckCircle2 size={16} className="text-[#5E6F58]" />}
+                        </div>
+                        <div className="mt-3">
+                          <span className="text-xs font-bold block text-[#1C1917]">Pay via UPI</span>
+                          <span className="text-[9px] text-[#7A7571] block leading-tight mt-0.5">Scan cafe's UPI QR with GPay, PhonePe, etc.</span>
+                        </div>
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+
               </div>
             </div>
           </div>

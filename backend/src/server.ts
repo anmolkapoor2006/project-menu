@@ -21,7 +21,7 @@ import {
   getRestaurantFullMenu,
 } from './controllers/menu.controller';
 import { getPublicMenu, logViewEvent, callStaff } from './controllers/public.controller';
-import { placeOrder, getOrders, updateOrderStatus } from './controllers/order.controller';
+import { placeOrder, getOrders, updateOrderStatus, getOrderById } from './controllers/order.controller';
 import { getRestaurantAnalytics, getPlatformAnalytics } from './controllers/analytics.controller';
 
 // Middleware imports
@@ -68,7 +68,7 @@ app.post('/api/auth/login', authLimiter, login);
 app.get('/api/auth/me', authenticateToken, me);
 
 // Restaurant Profile, QR & Full Menu
-app.put('/api/restaurants/:id', authenticateToken, upload.single('logo'), updateRestaurant);
+app.put('/api/restaurants/:id', authenticateToken, upload.fields([{ name: 'logo', maxCount: 1 }, { name: 'upiQrCode', maxCount: 1 }]), updateRestaurant);
 app.get('/api/restaurants/:id/qrcode', authenticateToken, getQRCode);
 app.delete('/api/restaurants/:id', authenticateToken, deleteRestaurant);
 app.get('/api/restaurants/:id/full-menu', authenticateToken, getRestaurantFullMenu);
@@ -85,6 +85,7 @@ app.delete('/api/items/:id', authenticateToken, deleteMenuItem);
 
 // Orders
 app.post('/api/public/menu/:slug/order', orderLimiter, placeOrder);
+app.get('/api/public/orders/:id', getOrderById);
 app.get('/api/restaurants/:id/orders', authenticateToken, getOrders);
 app.put('/api/orders/:id/status', authenticateToken, updateOrderStatus);
 

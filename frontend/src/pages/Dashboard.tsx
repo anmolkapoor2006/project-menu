@@ -5,7 +5,7 @@ import QRSection from '../components/QRSection';
 import MenuBuilder from './MenuBuilder';
 import LiveOrders from '../components/LiveOrders';
 import AnalyticsView from '../components/AnalyticsView';
-import { Store, UtensilsCrossed, ClipboardList, BarChart3, LogOut, Camera, Loader2, Save, Settings, Megaphone } from 'lucide-react';
+import { Store, UtensilsCrossed, ClipboardList, BarChart3, LogOut, Camera, Loader2, Save, Settings, Megaphone, QrCode } from 'lucide-react';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -20,8 +20,12 @@ export default function Dashboard() {
   const [restName, setRestName] = useState('');
   const [restAddress, setRestAddress] = useState('');
   const [restContact, setRestContact] = useState('');
+  const [restUpiId, setRestUpiId] = useState('');
+  const [restUpiPayeeName, setRestUpiPayeeName] = useState('');
   const [restLogo, setRestLogo] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [restUpiQrImage, setRestUpiQrImage] = useState<File | null>(null);
+  const [upiQrPreview, setUpiQrPreview] = useState<string | null>(null);
   const [logoError, setLogoError] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileError, setProfileError] = useState('');
@@ -43,8 +47,13 @@ export default function Dashboard() {
           setRestName(rest.name || '');
           setRestAddress(rest.address || '');
           setRestContact(rest.contactNumber || '');
+          setRestUpiId(rest.upiId || '');
+          setRestUpiPayeeName(rest.upiPayeeName || '');
           if (rest.logoUrl) {
             setLogoPreview(rest.logoUrl.startsWith('http') ? rest.logoUrl : `${API_BASE_URL}${rest.logoUrl}`);
+          }
+          if (rest.upiQrImageUrl) {
+            setUpiQrPreview(rest.upiQrImageUrl.startsWith('http') ? rest.upiQrImageUrl : `${API_BASE_URL}${rest.upiQrImageUrl}`);
           }
         }
       } catch (err) {
@@ -58,6 +67,11 @@ export default function Dashboard() {
           setRestName(rest.name || '');
           setRestAddress(rest.address || '');
           setRestContact(rest.contactNumber || '');
+          setRestUpiId(rest.upiId || '');
+          setRestUpiPayeeName(rest.upiPayeeName || '');
+          if (rest.upiQrImageUrl) {
+            setUpiQrPreview(rest.upiQrImageUrl.startsWith('http') ? rest.upiQrImageUrl : `${API_BASE_URL}${rest.upiQrImageUrl}`);
+          }
         }
       }
     };
@@ -90,17 +104,37 @@ export default function Dashboard() {
     }
   };
 
+  const handleUpiQrChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setRestUpiQrImage(file);
+      setUpiQrPreview(URL.createObjectURL(file));
+    }
+  };
+
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setSavingProfile(true);
     setProfileError('');
 
+    const cleanedUpiId = restUpiId.trim();
+    if (cleanedUpiId && (!cleanedUpiId.includes('@') || cleanedUpiId.includes(' '))) {
+      setProfileError("Invalid UPI ID format. UPI ID must contain '@' and no spaces (e.g. cafename@okaxis).");
+      setSavingProfile(false);
+      return;
+    }
+
     const formData = new FormData();
     formData.append('name', restName);
     formData.append('address', restAddress);
     formData.append('contactNumber', restContact);
+    formData.append('upiId', cleanedUpiId);
+    formData.append('upiPayeeName', restUpiPayeeName.trim());
     if (restLogo) {
       formData.append('logo', restLogo);
+    }
+    if (restUpiQrImage) {
+      formData.append('upiQrCode', restUpiQrImage);
     }
 
     try {
@@ -309,6 +343,71 @@ export default function Dashboard() {
                         placeholder="123 Main Street, City"
                       />
                     </div>
+                    
+                    {/* UPI Settings Fields */}
+                    <div className="md:col-span-2 pt-2 border-t border-[#EAE8E4] space-y-4">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold uppercase tracking-wider text-[#5E6F58]">Direct UPI Payment Settings</span>
+                        <span className="text-[10px] text-slate-400 font-medium">(Allows customers to scan & pay via GPay, PhonePe, Paytm, etc.)</span>
+                      </div>
+
+                      {/* Primary Path: Upload UPI QR Code Image */}
+                      <div className="bg-[#FAF9F5] border border-[#EAE8E4] p-4 rounded-xl space-y-2">
+                        <label className="block text-xs font-semibold uppercase tracking-wider text-[#1C1917]">
+                          Option 1 (Primary): Upload your UPI QR Code Image
+                        </label>
+                        <div className="flex items-center gap-4">
+                          <div className="relative w-24 h-24 rounded-xl border border-[#E5E2DC] bg-white flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
+                            {upiQrPreview ? (
+                              <img src={upiQrPreview} alt="UPI QR Code" className="w-full h-full object-contain p-1" />
+                            ) : (
+                              <QrCode className="text-slate-400" size={32} />
+                            )}
+                          </div>
+                          <div className="space-y-2">
+                            <label className="cursor-pointer inline-flex items-center justify-center border border-[#E5E2DC] hover:border-[#5E6F58]/50 bg-white px-4 py-2.5 rounded-xl hover:bg-[#EAE8E4] transition-all text-xs font-bold text-[#7A7571] hover:text-[#1C1917] shadow-sm">
+                              <span>Choose QR Image File</span>
+                              <input type="file" accept="image/*" className="hidden" onChange={handleUpiQrChange} />
+                            </label>
+                            <p className="text-[10px] text-[#7A7571] leading-tight">
+                              Upload a screenshot/photo of your official GPay/PhonePe/Paytm QR code. This will be shown directly to customers.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Optional Fallback Path: UPI ID Text Input */}
+                      <div className="space-y-2 pt-1">
+                        <label className="block text-xs font-semibold uppercase tracking-wider text-[#7A7571]">
+                          Option 2 (Optional Fallback): Enter UPI ID / Payee Name
+                        </label>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-[11px] font-semibold text-[#7A7571]">UPI ID / VPA</label>
+                            <input
+                              type="text"
+                              value={restUpiId}
+                              onChange={(e) => setRestUpiId(e.target.value)}
+                              className="mt-1 block w-full px-4 py-2 bg-[#F6F4F0] border border-[#E5E2DC] rounded-xl text-[#1C1917] focus:outline-none focus:ring-1 focus:ring-[#5E6F58] focus:border-[#5E6F58] text-sm font-mono transition-all"
+                              placeholder="e.g. cafename@okaxis"
+                            />
+                            <p className="text-[10px] text-[#7A7571] mt-1">Must contain '@' and no spaces.</p>
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-semibold text-[#7A7571]">UPI Payee Name</label>
+                            <input
+                              type="text"
+                              value={restUpiPayeeName}
+                              onChange={(e) => setRestUpiPayeeName(e.target.value)}
+                              className="mt-1 block w-full px-4 py-2 bg-[#F6F4F0] border border-[#E5E2DC] rounded-xl text-[#1C1917] focus:outline-none focus:ring-1 focus:ring-[#5E6F58] focus:border-[#5E6F58] text-sm transition-all"
+                              placeholder="e.g. Cafe Name / Owner Name"
+                            />
+                            <p className="text-[10px] text-[#7A7571] mt-1">Name displayed in customer's UPI app.</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
                     <div className="md:col-span-2">
                       <label className="block text-xs font-semibold uppercase tracking-wider text-[#7A7571] mb-1">Logo</label>
                       <div className="flex items-center gap-4">
@@ -341,9 +440,12 @@ export default function Dashboard() {
                       onClick={() => {
                         setEditingProfile(false);
                         setLogoPreview(restaurant.logoUrl ? (restaurant.logoUrl.startsWith('http') ? restaurant.logoUrl : `${API_BASE_URL}${restaurant.logoUrl}`) : null);
+                        setUpiQrPreview(restaurant.upiQrImageUrl ? (restaurant.upiQrImageUrl.startsWith('http') ? restaurant.upiQrImageUrl : `${API_BASE_URL}${restaurant.upiQrImageUrl}`) : null);
                         setRestName(restaurant.name || '');
                         setRestAddress(restaurant.address || '');
                         setRestContact(restaurant.contactNumber || '');
+                        setRestUpiId(restaurant.upiId || '');
+                        setRestUpiPayeeName(restaurant.upiPayeeName || '');
                       }}
                       className="px-5 py-2.5 border border-[#EAE8E4] text-[#7A7571] rounded-xl text-xs font-bold hover:bg-[#F6F4F0]"
                     >
@@ -352,28 +454,59 @@ export default function Dashboard() {
                   </div>
                 </form>
               ) : (
-                <div className="flex flex-col sm:flex-row items-center gap-6">
-                  <div className="w-20 h-20 rounded-2xl bg-[#F6F4F0] border border-[#EAE8E4] flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
-                    {restaurant.logoUrl && !logoError ? (
-                      <img
-                        src={
-                          restaurant.logoUrl.startsWith('http') || restaurant.logoUrl.startsWith('data:')
-                            ? restaurant.logoUrl
-                            : `${API_BASE_URL}${restaurant.logoUrl}`
-                        }
-                        alt="Logo"
-                        onError={() => setLogoError(true)}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <Store size={32} className="text-[#7A7571]" />
-                    )}
+                <div className="flex flex-col sm:flex-row items-start justify-between gap-6">
+                  <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
+                    <div className="w-20 h-20 rounded-2xl bg-[#F6F4F0] border border-[#EAE8E4] flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
+                      {restaurant.logoUrl && !logoError ? (
+                        <img
+                          src={
+                            restaurant.logoUrl.startsWith('http') || restaurant.logoUrl.startsWith('data:')
+                              ? restaurant.logoUrl
+                              : `${API_BASE_URL}${restaurant.logoUrl}`
+                          }
+                          alt="Logo"
+                          onError={() => setLogoError(true)}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <Store size={32} className="text-[#7A7571]" />
+                      )}
+                    </div>
+
+                    <div className="text-center sm:text-left space-y-1">
+                      <h3 className="text-2xl font-bold text-[#1C1917] tracking-tight">{restaurant.name}</h3>
+                      <p className="text-sm text-[#7A7571]">{restaurant.address || 'No address registered'}</p>
+                      <p className="text-xs text-[#7A7571] font-semibold">Contact: {restaurant.contactNumber || 'N/A'}</p>
+                    </div>
                   </div>
 
-                  <div className="text-center sm:text-left space-y-1">
-                    <h3 className="text-2xl font-bold text-[#1C1917] tracking-tight">{restaurant.name}</h3>
-                    <p className="text-sm text-[#7A7571]">{restaurant.address || 'No address registered'}</p>
-                    <p className="text-xs text-[#7A7571] font-semibold">Contact: {restaurant.contactNumber || 'N/A'}</p>
+                  {/* UPI Details Summary Badge */}
+                  <div className="bg-[#FAF9F5] border border-[#EAE8E4] p-3.5 rounded-xl w-full sm:w-auto text-xs space-y-1">
+                    <span className="text-[10px] font-bold text-[#7A7571] uppercase tracking-wider block">UPI QR Status</span>
+                    {restaurant.upiQrImageUrl ? (
+                      <div>
+                        <span className="bg-emerald-500/10 text-emerald-700 border border-emerald-500/20 px-2 py-0.5 rounded font-bold text-[10px] uppercase inline-block">Uploaded QR Active</span>
+                        <div className="mt-1 flex items-center gap-2">
+                          <img 
+                            src={restaurant.upiQrImageUrl.startsWith('http') ? restaurant.upiQrImageUrl : `${API_BASE_URL}${restaurant.upiQrImageUrl}`} 
+                            alt="QR Thumbnail" 
+                            className="w-8 h-8 object-contain rounded bg-white border border-[#EAE8E4]" 
+                          />
+                          <span className="text-[10px] text-slate-500">Custom QR Image Uploaded</span>
+                        </div>
+                      </div>
+                    ) : restaurant.upiId ? (
+                      <div>
+                        <span className="bg-emerald-500/10 text-emerald-700 border border-emerald-500/20 px-2 py-0.5 rounded font-bold text-[10px] uppercase inline-block">UPI ID Active</span>
+                        <p className="text-xs font-mono font-bold text-[#1C1917] mt-1">{restaurant.upiId}</p>
+                        {restaurant.upiPayeeName && <p className="text-[10px] text-[#7A7571]">Payee: {restaurant.upiPayeeName}</p>}
+                      </div>
+                    ) : (
+                      <div>
+                        <span className="bg-amber-500/10 text-amber-700 border border-amber-500/20 px-2 py-0.5 rounded font-bold text-[10px] uppercase inline-block">Not Configured</span>
+                        <p className="text-[10px] text-[#7A7571] mt-1">Upload QR image or set UPI ID to enable "Pay via UPI"</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

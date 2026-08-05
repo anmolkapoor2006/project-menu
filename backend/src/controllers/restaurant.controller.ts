@@ -9,6 +9,8 @@ const updateRestaurantSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters').optional(),
   address: z.string().optional(),
   contactNumber: z.string().optional(),
+  upiId: z.string().optional().nullable(),
+  upiPayeeName: z.string().optional().nullable(),
   isActive: z.boolean().optional(),
   isAcceptingOrders: z.boolean().optional(),
 });
@@ -28,11 +30,27 @@ export async function updateRestaurant(req: AuthenticatedRequest, res: Response)
     }
 
     const body = updateRestaurantSchema.parse(req.body);
-    const logoUrl = req.file ? await uploadToCloudinary(req.file.path) : undefined;
+
+    if (body.upiId !== undefined && body.upiId !== null && body.upiId.trim() !== '') {
+      const cleanedUpiId = body.upiId.trim();
+      if (!cleanedUpiId.includes('@') || cleanedUpiId.includes(' ')) {
+        return res.status(400).json({ error: "Invalid UPI ID format. UPI ID must contain '@' and no spaces." });
+      }
+    }
+
+    const files = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
+    const logoFile = req.file || (files && files['logo'] ? files['logo'][0] : undefined);
+    const qrFile = files && files['upiQrCode'] ? files['upiQrCode'][0] : undefined;
+
+    const logoUrl = logoFile ? await uploadToCloudinary(logoFile.path) : undefined;
+    const upiQrImageUrl = qrFile ? await uploadToCloudinary(qrFile.path) : undefined;
 
     const updateData: any = { ...body };
     if (logoUrl) {
       updateData.logoUrl = logoUrl;
+    }
+    if (upiQrImageUrl) {
+      updateData.upiQrImageUrl = upiQrImageUrl;
     }
 
     const updated = await prisma.restaurant.update({

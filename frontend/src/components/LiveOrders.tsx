@@ -15,8 +15,10 @@ interface OrderItem {
 
 interface Order {
   id: string;
+  customerName: string | null;
   tableNumber: string | null;
-  status: 'RECEIVED' | 'PREPARING' | 'SERVED' | 'CANCELLED';
+  paymentMethod?: string | null;
+  status: 'PAYMENT_PENDING_VERIFICATION' | 'RECEIVED' | 'PREPARING' | 'SERVED' | 'CANCELLED';
   createdAt: string;
   items: OrderItem[];
 }
@@ -101,7 +103,7 @@ export default function LiveOrders({ restaurantId }: LiveOrdersProps) {
     };
   }, [restaurantId]);
 
-  const handleUpdateStatus = async (orderId: string, nextStatus: 'PREPARING' | 'SERVED' | 'CANCELLED') => {
+  const handleUpdateStatus = async (orderId: string, nextStatus: 'RECEIVED' | 'PREPARING' | 'SERVED' | 'CANCELLED') => {
     const prevOrders = [...orders];
     // Optimistic UI update - instantly update local state!
     setOrders((current) =>
@@ -118,7 +120,7 @@ export default function LiveOrders({ restaurantId }: LiveOrdersProps) {
     }
   };
 
-  const activeOrders = orders.filter((o) => o.status === 'RECEIVED' || o.status === 'PREPARING');
+  const activeOrders = orders.filter((o) => o.status === 'PAYMENT_PENDING_VERIFICATION' || o.status === 'RECEIVED' || o.status === 'PREPARING');
   const pastOrders = orders.filter((o) => o.status === 'SERVED' || o.status === 'CANCELLED');
 
   if (loading) {
@@ -194,81 +196,122 @@ export default function LiveOrders({ restaurantId }: LiveOrdersProps) {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {activeOrders.map((order) => (
-              <div
-                key={order.id}
-                className={`bg-white border rounded-2xl p-6 space-y-4 shadow-[0_4px_20px_rgb(28,25,23,0.01)] flex flex-col justify-between ${
-                  order.status === 'RECEIVED'
-                    ? 'border-[#5E6F58]/40'
-                    : 'border-amber-400/40'
-                }`}
-              >
-                <div className="space-y-3">
-                  <div className="flex justify-between items-start gap-4">
-                    <div>
-                      <span className={`text-[9px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider ${
-                        order.status === 'RECEIVED'
-                          ? 'bg-[#5E6F58]/10 text-[#5E6F58] border border-[#5E6F58]/20'
-                          : 'bg-amber-500/10 text-amber-700 border border-amber-500/20'
-                      }`}>
-                        {order.status}
-                      </span>
-                      <p className="text-[10px] text-[#7A7571] mt-2">
-                        Received: {new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </p>
-                    </div>
+            {activeOrders.map((order) => {
+              const orderTotal = order.items.reduce(
+                (sum, item) => sum + parseFloat(item.priceAtOrder) * item.quantity,
+                0
+              );
+              const orderAgeMinutes = (Date.now() - new Date(order.createdAt).getTime()) / (60 * 1000);
+              const isStalePending = order.status === 'PAYMENT_PENDING_VERIFICATION' && orderAgeMinutes > 15;
 
-                    {order.tableNumber && (
-                      <span className="text-xs font-bold text-[#1C1917] bg-[#F6F4F0] border border-[#EAE8E4] px-3 py-1.5 rounded-xl font-mono">
-                        Table: {order.tableNumber}
-                      </span>
-                    )}
-                  </div>
+              return (
+                <div
+                  key={order.id}
+                  className={`bg-white border rounded-2xl p-6 space-y-4 shadow-[0_4px_20px_rgb(28,25,23,0.01)] flex flex-col justify-between ${
+                    isStalePending
+                      ? 'border-red-400 bg-red-50/20'
+                      : order.status === 'PAYMENT_PENDING_VERIFICATION'
+                      ? 'border-amber-400 bg-amber-50/20'
+                      : order.status === 'RECEIVED'
+                      ? 'border-[#5E6F58]/40'
+                      : 'border-blue-400/40'
+                  }`}
+                >
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-start gap-4">
+                      <div>
+                        {isStalePending ? (
+                          <span className="text-[9px] px-2.5 py-1 rounded-full font-bold uppercase tracking-wider bg-red-600 text-white border border-red-500 inline-flex items-center gap-1 shadow-sm animate-pulse">
+                            ⚠️ Unconfirmed — Contact Customer
+                          </span>
+                        ) : order.status === 'PAYMENT_PENDING_VERIFICATION' ? (
+                          <span className="text-[9px] px-2.5 py-1 rounded-full font-bold uppercase tracking-wider bg-amber-500 text-amber-950 border border-amber-400 inline-flex items-center gap-1 shadow-sm animate-pulse">
+                            ⚡ Waiting for Payment Confirmation
+                          </span>
+                        ) : (
+                          <span className={`text-[9px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider ${
+                            order.status === 'RECEIVED'
+                              ? 'bg-[#5E6F58]/10 text-[#5E6F58] border border-[#5E6F58]/20'
+                              : 'bg-blue-500/10 text-blue-700 border border-blue-500/20'
+                          }`}>
+                            {order.status}
+                          </span>
+                        )}
 
-                  {/* List of items */}
-                  <div className="divide-y divide-[#EAE8E4] py-1 border-t border-b border-[#F6F4F0]">
-                    {order.items.map((item) => (
-                      <div key={item.id} className="py-2.5 flex justify-between gap-4 text-xs">
-                        <div>
-                          <span className="font-bold text-[#1C1917]">{item.quantity}x</span> {item.menuItem.name}
-                          {item.notes && (
-                            <p className="text-[10px] text-[#7A7571] italic mt-0.5">Note: "{item.notes}"</p>
-                          )}
+                        <div className="mt-2">
+                          <p className="text-sm font-bold text-[#1C1917] flex items-center gap-1">
+                            Customer: <span className="text-[#5E6F58] font-black">{order.customerName || 'Guest'}</span>
+                          </p>
+                          <p className="text-[10px] text-[#7A7571]">
+                            Received: {new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </p>
                         </div>
                       </div>
-                    ))}
+
+                      <div className="text-right space-y-1">
+                        {order.tableNumber && (
+                          <span className="text-xs font-bold text-[#1C1917] bg-[#F6F4F0] border border-[#EAE8E4] px-3 py-1 rounded-xl font-mono inline-block">
+                            Table: {order.tableNumber}
+                          </span>
+                        )}
+                        <p className="text-xs font-black font-mono text-[#5E6F58]">₹{orderTotal.toFixed(2)}</p>
+                      </div>
+                    </div>
+
+                    {/* List of items */}
+                    <div className="divide-y divide-[#EAE8E4] py-1 border-t border-b border-[#F6F4F0]">
+                      {order.items.map((item) => (
+                        <div key={item.id} className="py-2.5 flex justify-between gap-4 text-xs">
+                          <div>
+                            <span className="font-bold text-[#1C1917]">{item.quantity}x</span> {item.menuItem.name}
+                            {item.notes && (
+                              <p className="text-[10px] text-[#7A7571] italic mt-0.5">Note: "{item.notes}"</p>
+                            )}
+                          </div>
+                          <span className="font-mono text-slate-500 text-[11px]">₹{(parseFloat(item.priceAtOrder) * item.quantity).toFixed(2)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Status actions */}
+                  <div className="flex gap-2 pt-2">
+                    {order.status === 'PAYMENT_PENDING_VERIFICATION' ? (
+                      <button
+                        onClick={() => handleUpdateStatus(order.id, 'RECEIVED')}
+                        className="flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 cursor-pointer"
+                      >
+                        <Check size={16} />
+                        Mark as Paid
+                      </button>
+                    ) : order.status === 'RECEIVED' ? (
+                      <button
+                        onClick={() => handleUpdateStatus(order.id, 'PREPARING')}
+                        className="flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 bg-[#5E6F58] hover:bg-[#4E5D49] text-white rounded-xl text-xs font-bold transition-all shadow-sm"
+                      >
+                        <Play size={12} />
+                        Start Preparing
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleUpdateStatus(order.id, 'SERVED')}
+                        className="flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-sm"
+                      >
+                        <Check size={12} />
+                        Complete & Serve
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleUpdateStatus(order.id, 'CANCELLED')}
+                      className="p-2 border border-[#EAE8E4] hover:bg-[#F6F4F0] text-[#7A7571] hover:text-red-650 rounded-xl transition-all"
+                      title="Cancel Order"
+                    >
+                      <X size={14} />
+                    </button>
                   </div>
                 </div>
-
-                {/* Status actions */}
-                <div className="flex gap-2 pt-2">
-                  {order.status === 'RECEIVED' ? (
-                    <button
-                      onClick={() => handleUpdateStatus(order.id, 'PREPARING')}
-                      className="flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 bg-[#5E6F58] hover:bg-[#4E5D49] text-white rounded-xl text-xs font-bold transition-all shadow-sm"
-                    >
-                      <Play size={12} />
-                      Start Preparing
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => handleUpdateStatus(order.id, 'SERVED')}
-                      className="flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-sm"
-                    >
-                      <Check size={12} />
-                      Complete & Serve
-                    </button>
-                  )}
-                  <button
-                    onClick={() => handleUpdateStatus(order.id, 'CANCELLED')}
-                    className="p-2 border border-[#EAE8E4] hover:bg-[#F6F4F0] text-[#7A7571] hover:text-red-650 rounded-xl transition-all"
-                    title="Cancel Order"
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

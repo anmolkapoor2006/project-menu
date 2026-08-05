@@ -237,14 +237,29 @@ export default function PublicMenu() {
     };
   }, [restaurant?.id, lastPlacedOrder?.id, API_BASE_URL]);
 
-  // Lock background page scroll when drawer or modal is open
+  // Robust Body Scroll Lock (Prevents background page scroll bleeding on iOS/Android & Desktop)
   useEffect(() => {
-    if (cartOpen || showPaymentModal || showCallStaffModal) {
+    const isModalOpen = cartOpen || showPaymentModal || showCallStaffModal;
+    if (isModalOpen) {
+      const scrollY = window.scrollY;
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.width = '100%';
       document.body.style.overflow = 'hidden';
     } else {
+      const scrollY = document.body.style.top;
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.width = '';
       document.body.style.overflow = '';
+      if (scrollY) {
+        window.scrollTo(0, parseInt(scrollY || '0', 10) * -1);
+      }
     }
     return () => {
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.width = '';
       document.body.style.overflow = '';
     };
   }, [cartOpen, showPaymentModal, showCallStaffModal]);
@@ -909,8 +924,14 @@ export default function PublicMenu() {
 
         {/* Sliding Cart Drawer */}
         {cartOpen && (
-          <div className="fixed inset-0 z-50 flex justify-center bg-black/50 backdrop-blur-sm">
-            <div className="w-full max-w-md bg-white border-x border-[#EAE8E4] h-full flex flex-col shadow-2xl overflow-hidden">
+          <div 
+            onClick={() => setCartOpen(false)}
+            className="fixed inset-0 z-50 flex justify-center bg-black/75 backdrop-blur-md transition-all"
+          >
+            <div 
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-md bg-white border-x border-[#EAE8E4] h-full flex flex-col shadow-2xl overflow-hidden"
+            >
               
               {/* Header */}
               <div className="p-5 border-b border-[#EAE8E4] flex justify-between items-center bg-gradient-to-b from-[#F6F4F0] to-white shrink-0">
@@ -927,7 +948,7 @@ export default function PublicMenu() {
               </div>
 
               {/* Drawer Scrollable Body (Basket items + Payment section) */}
-              <div className="flex-1 overflow-y-auto p-5 space-y-5 overscroll-contain">
+              <div className="flex-1 overflow-y-auto p-5 space-y-5 overscroll-contain touch-pan-y">
                 {orderError && (
                   <div className="bg-red-500/5 border border-red-500/20 text-red-750 text-xs p-3.5 rounded-xl">
                     {orderError}

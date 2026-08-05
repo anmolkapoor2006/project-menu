@@ -1062,7 +1062,7 @@ export default function PublicMenu() {
           >
             <div 
               onClick={(e) => e.stopPropagation()}
-              className="bg-white border border-[#EAE8E4] rounded-3xl max-w-md w-full max-h-[92vh] flex flex-col shadow-2xl overflow-hidden my-auto"
+              className="bg-white border border-[#EAE8E4] rounded-3xl max-w-md w-full h-[92vh] max-h-[92dvh] flex flex-col shadow-2xl overflow-hidden my-auto"
             >
               
               {/* Modal Header */}

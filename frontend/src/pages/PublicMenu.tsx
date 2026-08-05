@@ -926,11 +926,11 @@ export default function PublicMenu() {
         {cartOpen && (
           <div 
             onClick={() => setCartOpen(false)}
-            className="fixed inset-0 z-50 flex justify-center bg-black/75 backdrop-blur-md transition-all"
+            className="fixed inset-0 z-50 flex justify-center bg-black/75 backdrop-blur-md transition-all overflow-hidden"
           >
             <div 
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-md bg-white border-x border-[#EAE8E4] h-full max-h-[100dvh] flex flex-col shadow-2xl overflow-hidden"
+              className="w-full max-w-md bg-white border-x border-[#EAE8E4] h-dvh max-h-dvh flex flex-col shadow-2xl overflow-hidden"
             >
               
               {/* Drawer Header */}
@@ -1058,11 +1058,11 @@ export default function PublicMenu() {
         {showPaymentModal && (
           <div 
             onClick={() => setShowPaymentModal(false)}
-            className="fixed inset-0 bg-black/75 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto"
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md overflow-hidden"
           >
             <div 
               onClick={(e) => e.stopPropagation()}
-              className="bg-white border border-[#EAE8E4] rounded-3xl max-w-md w-full h-[92vh] max-h-[92dvh] flex flex-col shadow-2xl overflow-hidden my-auto"
+              className="bg-white border border-[#EAE8E4] rounded-3xl max-w-md w-full h-[92dvh] max-h-[92dvh] flex flex-col shadow-2xl overflow-hidden my-auto"
             >
               
               {/* Modal Header */}

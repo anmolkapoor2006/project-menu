@@ -6,8 +6,10 @@ export const orderLimiter = rateLimit({
   max: 100, // max 100 orders per table/IP per 15 mins
   keyGenerator: (req) => {
     const table = req.body?.tableNumber || 'counter';
-    return `${req.ip || 'unknown'}-${table}`;
+    const ip = req.ip || req.headers['x-forwarded-for'] || '127.0.0.1';
+    return `${Array.isArray(ip) ? ip[0] : ip}-${table}`;
   },
+  validate: false,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many orders placed from this table. Please wait before ordering again.' }

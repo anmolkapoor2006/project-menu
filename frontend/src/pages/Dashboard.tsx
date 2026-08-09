@@ -5,6 +5,7 @@ import QRSection from '../components/QRSection';
 import MenuBuilder from './MenuBuilder';
 import LiveOrders from '../components/LiveOrders';
 import AnalyticsView from '../components/AnalyticsView';
+import { API_BASE_URL } from '../config';
 import {
   Store, UtensilsCrossed, ClipboardList, BarChart3, LogOut,
   Camera, Loader2, Save, Settings, Megaphone, QrCode, Menu, X,
@@ -34,7 +35,6 @@ export default function Dashboard() {
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileError, setProfileError] = useState('');
 
-  const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
   useEffect(() => {
     const fetchMe = async () => {

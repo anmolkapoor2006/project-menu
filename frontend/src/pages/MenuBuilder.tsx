@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/api';
+import { API_BASE_URL } from '../config';
 import {
   Plus, Edit2, Trash2, Camera, X, Eye, EyeOff, Loader2,
   Utensils, ChevronRight, Tag, Clock, LayoutGrid, List
@@ -76,7 +77,6 @@ export default function MenuBuilder({ restaurantId }: MenuBuilderProps) {
   const [itemImage, setItemImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
 
-  const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
   const fetchMenu = async () => {
     try {

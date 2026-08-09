@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import io from 'socket.io-client';
 import api from '../api/api';
+import { API_BASE_URL } from '../config';
 import { Play, Check, X, Loader2, Volume2, VolumeX, Bell, Clock, IndianRupee } from 'lucide-react';
 
 interface OrderItem {
@@ -50,7 +51,6 @@ export default function LiveOrders({ restaurantId }: LiveOrdersProps) {
   const [error, setError] = useState('');
   const [audioEnabled, setAudioEnabled] = useState(true);
 
-  const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
   const playBeep = () => {
     if (!audioEnabled) return;

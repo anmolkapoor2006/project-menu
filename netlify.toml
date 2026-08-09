@@ -3,6 +3,9 @@
   publish = "dist"
   command = "npm run build"
 
+[build.environment]
+  VITE_API_URL = "https://backend-six-coral-42.vercel.app"
+
 [[redirects]]
   from = "/*"
   to = "/index.html"

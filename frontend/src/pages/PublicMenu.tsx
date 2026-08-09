@@ -3,6 +3,7 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import QRCode from 'qrcode';
 import io from 'socket.io-client';
 import api from '../api/api';
+import { API_BASE_URL } from '../config';
 import {
   Store, Phone, MapPin, Search, AlertCircle, Loader2,
   ShoppingCart, Plus, Minus, X, Check, Utensils, ClipboardList,
@@ -72,10 +73,9 @@ export default function PublicMenu() {
   // Toast
   const [confirmedToast, setConfirmedToast] = useState('');
 
-  const categoryRefs = useRef<{ [id: string]: HTMLElement | null }>({});
-  const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
-  // ── Body scroll lock when overlays are open ───────────────────────────────
+  const categoryRefs = useRef<{ [id: string]: HTMLElement | null }>({});
+
   useEffect(() => {
     const locked = view === 'cart' || showCallStaffModal;
     if (locked) {

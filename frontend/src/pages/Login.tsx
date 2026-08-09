@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import api from '../api/api';
+import { Loader2, Eye, EyeOff } from 'lucide-react';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -26,11 +28,9 @@ export default function Login() {
     e.preventDefault();
     setError('');
     setLoading(true);
-
     try {
       const response = await api.post('/api/auth/login', { email, password });
       const { token, user, restaurant } = response.data;
-      
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(user));
       if (restaurant) {
@@ -38,7 +38,6 @@ export default function Login() {
       } else {
         localStorage.removeItem('restaurant');
       }
-
       if (user.role === 'SUPER_ADMIN') {
         navigate('/admin/dashboard');
       } else {
@@ -52,73 +51,117 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#FAF9F5] px-4 py-12 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8 bg-white border border-[#EAE8E4] p-10 rounded-2xl shadow-[0_8px_30px_rgb(28,25,23,0.03)]">
-        <div>
-          <h2 className="text-center text-4xl font-normal text-[#1C1917] tracking-tight font-serif-display">
-            Menu<span className="text-[#5E6F58] font-normal italic">QR</span>
-          </h2>
-          <p className="mt-3 text-center text-xs text-[#7A7571] uppercase tracking-wider">
-            Sign in to manage your digital menu
-          </p>
-        </div>
-        
-        {error && (
-          <div className="bg-red-500/5 border border-red-500/20 text-red-700 text-xs p-4 rounded-xl">
-            {error}
-          </div>
-        )}
+    <div className="min-h-screen flex bg-[var(--cream)]">
+      {/* Left Panel — Brand */}
+      <div className="hidden lg:flex lg:w-1/2 bg-[var(--sage)] flex-col justify-between p-12 relative overflow-hidden">
+        {/* Decorative circles */}
+        <div className="absolute -top-24 -right-24 w-72 h-72 rounded-full bg-white/5" />
+        <div className="absolute -bottom-32 -left-16 w-96 h-96 rounded-full bg-white/5" />
+        <div className="absolute top-1/2 right-8 w-48 h-48 rounded-full bg-white/5" />
 
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          <div className="space-y-4">
+        <div className="relative z-10">
+          <h1 className="font-display text-4xl text-white font-medium italic">MenuQR</h1>
+          <p className="text-[var(--sage-muted)] text-sm mt-1 tracking-wider uppercase">Digital Menu Platform</p>
+        </div>
+
+        <div className="relative z-10 space-y-8">
+          <blockquote className="text-white/90 font-display text-3xl font-light leading-snug italic">
+            "The simplest way to bring your cafe menu into the digital age."
+          </blockquote>
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-sm">☕</div>
             <div>
-              <label htmlFor="email-address" className="block text-xs font-semibold uppercase tracking-wider text-[#7A7571]">
-                Email Address
+              <p className="text-white text-sm font-semibold">Trusted by 100+ Cafes</p>
+              <p className="text-white/60 text-xs">Across India</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="relative z-10 flex gap-6 text-white/50 text-xs">
+          <span>QR Menus</span>
+          <span>·</span>
+          <span>Live Orders</span>
+          <span>·</span>
+          <span>UPI Payments</span>
+          <span>·</span>
+          <span>Analytics</span>
+        </div>
+      </div>
+
+      {/* Right Panel — Form */}
+      <div className="flex-1 flex items-center justify-center px-6 py-16">
+        <div className="w-full max-w-md space-y-8">
+          {/* Mobile brand */}
+          <div className="lg:hidden text-center">
+            <h1 className="font-display text-3xl text-[var(--sage)] font-medium italic">MenuQR</h1>
+          </div>
+
+          <div>
+            <h2 className="font-display text-3xl text-[var(--text)] font-medium">Welcome back</h2>
+            <p className="text-[var(--muted)] text-sm mt-1">Sign in to manage your cafe</p>
+          </div>
+
+          {error && (
+            <div className="bg-[var(--red-light)] border border-red-200 text-[var(--red-soft)] text-sm p-4 rounded-2xl flex items-start gap-2">
+              <span className="mt-0.5">⚠️</span>
+              <span>{error}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div className="space-y-1.5">
+              <label className="block text-xs font-semibold text-[var(--text-mid)] uppercase tracking-wider">
+                Email
               </label>
               <input
                 id="email-address"
-                name="email"
                 type="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="mt-2 block w-full px-4 py-3 bg-[#F6F4F0] border border-[#E5E2DC] rounded-xl text-[#1C1917] placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-[#5E6F58] focus:border-[#5E6F58] text-sm transition-all"
+                className="w-full px-4 py-3.5 bg-white border border-[var(--cream-border)] rounded-2xl text-[var(--text)] placeholder-[var(--muted-light)] focus:outline-none focus:ring-2 focus:ring-[var(--sage)] focus:border-transparent text-sm transition-all"
                 placeholder="you@example.com"
               />
             </div>
-            <div>
-              <label htmlFor="password" className="block text-xs font-semibold uppercase tracking-wider text-[#7A7571]">
+
+            <div className="space-y-1.5">
+              <label className="block text-xs font-semibold text-[var(--text-mid)] uppercase tracking-wider">
                 Password
               </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="mt-2 block w-full px-4 py-3 bg-[#F6F4F0] border border-[#E5E2DC] rounded-xl text-[#1C1917] placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-[#5E6F58] focus:border-[#5E6F58] text-sm transition-all"
-                placeholder="••••••••"
-              />
+              <div className="relative">
+                <input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full px-4 py-3.5 pr-12 bg-white border border-[var(--cream-border)] rounded-2xl text-[var(--text)] placeholder-[var(--muted-light)] focus:outline-none focus:ring-2 focus:ring-[var(--sage)] focus:border-transparent text-sm transition-all"
+                  placeholder="••••••••"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--muted)] hover:text-[var(--text)] transition-colors"
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
             </div>
-          </div>
 
-          <div>
             <button
               type="submit"
               disabled={loading}
-              className="w-full flex justify-center py-3.5 px-4 border border-transparent text-sm font-semibold rounded-xl text-white bg-[#5E6F58] hover:bg-[#4E5D49] focus:outline-none transition-colors disabled:opacity-50"
+              className="w-full py-4 bg-[var(--sage)] hover:bg-[var(--sage-mid)] disabled:opacity-60 text-white font-semibold rounded-2xl text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-[var(--sage)]/20 active:scale-[0.98]"
             >
-              {loading ? 'Signing in...' : 'Sign In'}
+              {loading && <Loader2 className="animate-spin" size={16} />}
+              {loading ? 'Signing in…' : 'Sign In'}
             </button>
-          </div>
-        </form>
+          </form>
 
-        <div className="text-center mt-4">
-          <p className="text-xs text-[#7A7571]">
-            Want to register your cafe?{' '}
-            <Link to="/signup" className="font-semibold text-[#5E6F58] hover:text-[#4E5D49]">
-              Sign up here
+          <p className="text-center text-sm text-[var(--muted)]">
+            New to MenuQR?{' '}
+            <Link to="/signup" className="font-semibold text-[var(--sage)] hover:underline">
+              Register your cafe
             </Link>
           </p>
         </div>

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../api/api';
-import { Download, Copy, Check, QrCode } from 'lucide-react';
+import { Download, Copy, Check, QrCode, ExternalLink } from 'lucide-react';
 
 interface QRSectionProps {
   restaurantId: string;
@@ -24,9 +24,7 @@ export default function QRSection({ restaurantId }: QRSectionProps) {
         setLoading(false);
       }
     }
-    if (restaurantId) {
-      fetchQR();
-    }
+    if (restaurantId) fetchQR();
   }, [restaurantId]);
 
   const handleCopy = () => {
@@ -46,50 +44,72 @@ export default function QRSection({ restaurantId }: QRSectionProps) {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-48 bg-white border border-[#EAE8E4] rounded-2xl">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#5E6F58]"></div>
+      <div className="bg-white rounded-3xl border border-[var(--cream-border)] p-8 flex items-center justify-center h-48">
+        <div className="animate-spin rounded-full h-8 w-8 border-2 border-[var(--sage)] border-t-transparent" />
       </div>
     );
   }
 
   return (
-    <div className="bg-white border border-[#EAE8E4] rounded-2xl p-8 flex flex-col md:flex-row items-center gap-8 shadow-[0_4px_20px_rgb(28,25,23,0.01)]">
-      <div className="bg-white p-4 rounded-2xl shadow-sm border border-[#EAE8E4]">
-        {qrCodeUrl ? (
-          <img src={qrCodeUrl} alt="Menu QR Code" className="w-44 h-44 block" />
-        ) : (
-          <div className="w-44 h-44 flex items-center justify-center bg-[#F6F4F0] text-[#7A7571] rounded-xl">
-            <QrCode size={44} />
-          </div>
-        )}
+    <div className="bg-white rounded-3xl border border-[var(--cream-border)] shadow-sm overflow-hidden">
+      <div className="px-6 py-4 border-b border-[var(--cream-dark)]">
+        <h2 className="text-lg font-semibold text-[var(--text)]">Your Menu QR Code</h2>
+        <p className="text-xs text-[var(--muted)] mt-0.5">Print and place on tables — customers scan to order</p>
       </div>
 
-      <div className="flex-1 text-center md:text-left space-y-4">
-        <h2 className="text-xl font-bold text-[#1C1917]">Cafe QR Code</h2>
-        <p className="text-sm text-[#7A7571] max-w-md leading-relaxed">
-          Print this QR code and paste it on tables. Customers can scan it to instantly view your digital menu on their mobile devices without signing up.
-        </p>
-
-        <div className="bg-[#F6F4F0] border border-[#E5E2DC] px-4 py-2.5 rounded-xl flex items-center justify-between gap-2 overflow-x-auto">
-          <span className="text-xs text-[#5E6F58] font-mono select-all truncate font-semibold">{publicUrl}</span>
-          <button
-            onClick={handleCopy}
-            className="text-[#7A7571] hover:text-[#1C1917] p-1.5 hover:bg-[#FAF9F5] rounded-lg transition-all shrink-0"
-            title="Copy Menu Link"
-          >
-            {copied ? <Check size={16} className="text-emerald-600" /> : <Copy size={16} />}
-          </button>
+      <div className="p-6 flex flex-col md:flex-row items-center gap-8">
+        {/* QR Display */}
+        <div className="bg-[var(--cream)] p-5 rounded-2xl border border-[var(--cream-border)] shrink-0">
+          {qrCodeUrl ? (
+            <img src={qrCodeUrl} alt="Menu QR Code" className="w-52 h-52 block" />
+          ) : (
+            <div className="w-52 h-52 flex items-center justify-center text-[var(--muted)]">
+              <QrCode size={52} />
+            </div>
+          )}
         </div>
 
-        <div className="flex flex-wrap gap-3 justify-center md:justify-start">
-          <button
-            onClick={handleDownload}
-            disabled={!qrCodeUrl}
-            className="flex items-center gap-2 px-5 py-2.5 bg-[#5E6F58] hover:bg-[#4E5D49] text-white rounded-xl text-xs font-bold transition-all disabled:opacity-50 shadow-sm"
-          >
-            <Download size={14} />
-            Download QR Code
-          </button>
+        {/* Info & Actions */}
+        <div className="flex-1 space-y-5 text-center md:text-left">
+          <div>
+            <h3 className="text-xl font-display font-medium text-[var(--text)]">Share your menu link</h3>
+            <p className="text-sm text-[var(--muted)] mt-1 leading-relaxed max-w-sm">
+              Customers scan this QR code to instantly browse your menu and place orders — no app download required.
+            </p>
+          </div>
+
+          {/* URL pill */}
+          <div className="bg-[var(--cream)] border border-[var(--cream-border)] px-4 py-3 rounded-2xl flex items-center justify-between gap-3 overflow-hidden">
+            <span className="text-xs text-[var(--sage)] font-mono font-semibold truncate">{publicUrl}</span>
+            <button
+              onClick={handleCopy}
+              title="Copy"
+              className="shrink-0 p-1.5 rounded-lg hover:bg-[var(--cream-dark)] text-[var(--muted)] hover:text-[var(--text)] transition-all"
+            >
+              {copied ? <Check size={15} className="text-emerald-600" /> : <Copy size={15} />}
+            </button>
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex flex-wrap gap-3 justify-center md:justify-start">
+            <button
+              onClick={handleDownload}
+              disabled={!qrCodeUrl}
+              className="flex items-center gap-2 px-5 py-2.5 bg-[var(--sage)] hover:bg-[var(--sage-mid)] text-white rounded-xl text-sm font-semibold transition-all disabled:opacity-50 shadow-sm shadow-[var(--sage)]/20"
+            >
+              <Download size={15} /> Download QR
+            </button>
+            {publicUrl && (
+              <a
+                href={publicUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 px-5 py-2.5 border border-[var(--cream-border)] hover:bg-[var(--cream)] text-[var(--muted)] hover:text-[var(--text)] rounded-xl text-sm font-semibold transition-all"
+              >
+                <ExternalLink size={15} /> Preview Menu
+              </a>
+            )}
+          </div>
         </div>
       </div>
     </div>

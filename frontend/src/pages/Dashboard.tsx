@@ -5,17 +5,21 @@ import QRSection from '../components/QRSection';
 import MenuBuilder from './MenuBuilder';
 import LiveOrders from '../components/LiveOrders';
 import AnalyticsView from '../components/AnalyticsView';
-import { Store, UtensilsCrossed, ClipboardList, BarChart3, LogOut, Camera, Loader2, Save, Settings, Megaphone, QrCode } from 'lucide-react';
+import {
+  Store, UtensilsCrossed, ClipboardList, BarChart3, LogOut,
+  Camera, Loader2, Save, Settings, Megaphone, QrCode, Menu, X,
+  CheckCircle2, PauseCircle
+} from 'lucide-react';
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'overview' | 'menu' | 'orders' | 'analytics'>('overview');
-  
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
   const [user, setUser] = useState<any>({});
   const [restaurant, setRestaurant] = useState<any>({});
   const [announcement, setAnnouncement] = useState<any>(null);
 
-  // Profile Edit State
   const [editingProfile, setEditingProfile] = useState(false);
   const [restName, setRestName] = useState('');
   const [restAddress, setRestAddress] = useState('');
@@ -49,12 +53,8 @@ export default function Dashboard() {
           setRestContact(rest.contactNumber || '');
           setRestUpiId(rest.upiId || '');
           setRestUpiPayeeName(rest.upiPayeeName || '');
-          if (rest.logoUrl) {
-            setLogoPreview(rest.logoUrl.startsWith('http') ? rest.logoUrl : `${API_BASE_URL}${rest.logoUrl}`);
-          }
-          if (rest.upiQrImageUrl) {
-            setUpiQrPreview(rest.upiQrImageUrl.startsWith('http') ? rest.upiQrImageUrl : `${API_BASE_URL}${rest.upiQrImageUrl}`);
-          }
+          if (rest.logoUrl) setLogoPreview(rest.logoUrl.startsWith('http') ? rest.logoUrl : `${API_BASE_URL}${rest.logoUrl}`);
+          if (rest.upiQrImageUrl) setUpiQrPreview(rest.upiQrImageUrl.startsWith('http') ? rest.upiQrImageUrl : `${API_BASE_URL}${rest.upiQrImageUrl}`);
         }
       } catch (err) {
         console.error('Failed to fetch profile', err);
@@ -69,9 +69,7 @@ export default function Dashboard() {
           setRestContact(rest.contactNumber || '');
           setRestUpiId(rest.upiId || '');
           setRestUpiPayeeName(rest.upiPayeeName || '');
-          if (rest.upiQrImageUrl) {
-            setUpiQrPreview(rest.upiQrImageUrl.startsWith('http') ? rest.upiQrImageUrl : `${API_BASE_URL}${rest.upiQrImageUrl}`);
-          }
+          if (rest.upiQrImageUrl) setUpiQrPreview(rest.upiQrImageUrl.startsWith('http') ? rest.upiQrImageUrl : `${API_BASE_URL}${rest.upiQrImageUrl}`);
         }
       }
     };
@@ -79,68 +77,43 @@ export default function Dashboard() {
     const fetchAnnouncement = async () => {
       try {
         const res = await api.get('/api/public/announcement');
-        if (res.data.announcement) {
-          setAnnouncement(res.data.announcement);
-        }
-      } catch (err) {
-        console.error(err);
-      }
+        if (res.data.announcement) setAnnouncement(res.data.announcement);
+      } catch (err) { console.error(err); }
     };
 
     fetchMe();
     fetchAnnouncement();
   }, []);
 
-  const handleLogout = () => {
-    localStorage.clear();
-    navigate('/login');
-  };
+  const handleLogout = () => { localStorage.clear(); navigate('/login'); };
 
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setRestLogo(file);
-      setLogoPreview(URL.createObjectURL(file));
-    }
+    if (e.target.files?.[0]) { const f = e.target.files[0]; setRestLogo(f); setLogoPreview(URL.createObjectURL(f)); }
   };
-
   const handleUpiQrChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setRestUpiQrImage(file);
-      setUpiQrPreview(URL.createObjectURL(file));
-    }
+    if (e.target.files?.[0]) { const f = e.target.files[0]; setRestUpiQrImage(f); setUpiQrPreview(URL.createObjectURL(f)); }
   };
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setSavingProfile(true);
     setProfileError('');
-
     const cleanedUpiId = restUpiId.trim();
     if (cleanedUpiId && (!cleanedUpiId.includes('@') || cleanedUpiId.includes(' '))) {
-      setProfileError("Invalid UPI ID format. UPI ID must contain '@' and no spaces (e.g. cafename@okaxis).");
+      setProfileError("Invalid UPI ID format. Must contain '@' and no spaces (e.g. cafename@okaxis).");
       setSavingProfile(false);
       return;
     }
-
     const formData = new FormData();
     formData.append('name', restName);
     formData.append('address', restAddress);
     formData.append('contactNumber', restContact);
     formData.append('upiId', cleanedUpiId);
     formData.append('upiPayeeName', restUpiPayeeName.trim());
-    if (restLogo) {
-      formData.append('logo', restLogo);
-    }
-    if (restUpiQrImage) {
-      formData.append('upiQrCode', restUpiQrImage);
-    }
-
+    if (restLogo) formData.append('logo', restLogo);
+    if (restUpiQrImage) formData.append('upiQrCode', restUpiQrImage);
     try {
-      const response = await api.put(`/api/restaurants/${restaurant.id}`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      const response = await api.put(`/api/restaurants/${restaurant.id}`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
       const updatedRest = response.data.restaurant;
       setRestaurant(updatedRest);
       localStorage.setItem('restaurant', JSON.stringify(updatedRest));
@@ -152,382 +125,285 @@ export default function Dashboard() {
     }
   };
 
-  return (
-    <div className="min-h-screen bg-[#FAF9F5] text-[#1C1917] flex flex-col md:flex-row">
-      {/* Sidebar Nav */}
-      <aside className="w-full md:w-64 bg-white border-b md:border-b-0 md:border-r border-[#EAE8E4] flex flex-col justify-between p-6 shrink-0">
-        <div className="space-y-8">
-          <div>
-            <h1 className="text-2xl font-normal text-[#1C1917] tracking-tight flex items-center gap-2 font-serif-display">
-              Menu<span className="text-[#5E6F58] italic font-normal">QR</span>
-            </h1>
-            <p className="text-[10px] text-[#7A7571] mt-1 uppercase tracking-wider font-semibold">Cafe Admin Dashboard</p>
-          </div>
+  const navItems = [
+    { id: 'overview', label: 'Overview & QR', icon: Store },
+    { id: 'menu', label: 'Menu Builder', icon: UtensilsCrossed },
+    { id: 'orders', label: 'Live Kitchen', icon: ClipboardList },
+    { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+  ] as const;
 
-          <nav className="space-y-1">
-            <button
-              onClick={() => setActiveTab('overview')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs uppercase tracking-wider font-bold transition-all ${
-                activeTab === 'overview'
-                  ? 'bg-[#5E6F58]/10 text-[#5E6F58] border border-[#5E6F58]/20'
-                  : 'text-[#7A7571] hover:text-[#1C1917] hover:bg-[#F6F4F0] border border-transparent'
-              }`}
-            >
-              <Store size={16} />
-              Overview & QR
-            </button>
-            <button
-              onClick={() => setActiveTab('menu')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs uppercase tracking-wider font-bold transition-all ${
-                activeTab === 'menu'
-                  ? 'bg-[#5E6F58]/10 text-[#5E6F58] border border-[#5E6F58]/20'
-                  : 'text-[#7A7571] hover:text-[#1C1917] hover:bg-[#F6F4F0] border border-transparent'
-              }`}
-            >
-              <UtensilsCrossed size={16} />
-              Menu Builder
-            </button>
-            <button
-              onClick={() => setActiveTab('orders')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs uppercase tracking-wider font-bold transition-all ${
-                activeTab === 'orders'
-                  ? 'bg-[#5E6F58]/10 text-[#5E6F58] border border-[#5E6F58]/20'
-                  : 'text-[#7A7571] hover:text-[#1C1917] hover:bg-[#F6F4F0] border border-transparent'
-              }`}
-            >
-              <ClipboardList size={16} />
-              Live Kitchen
-            </button>
-            <button
-              onClick={() => setActiveTab('analytics')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs uppercase tracking-wider font-bold transition-all ${
-                activeTab === 'analytics'
-                  ? 'bg-[#5E6F58]/10 text-[#5E6F58] border border-[#5E6F58]/20'
-                  : 'text-[#7A7571] hover:text-[#1C1917] hover:bg-[#F6F4F0] border border-transparent'
-              }`}
-            >
-              <BarChart3 size={16} />
-              Analytics
-            </button>
-          </nav>
+  const SidebarContent = () => (
+    <div className="h-full flex flex-col">
+      {/* Brand */}
+      <div className="p-6 border-b border-white/10">
+        <h1 className="font-display text-2xl text-white font-medium italic">MenuQR</h1>
+        <p className="text-white/40 text-[10px] mt-0.5 uppercase tracking-widest">Cafe Dashboard</p>
+      </div>
 
-          {/* Kitchen Orders Toggle */}
-          <div className="pt-4 border-t border-[#EAE8E4]">
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-[#7A7571] mb-2">
-              Kitchen Status
-            </label>
-            <button
-              type="button"
-              onClick={async () => {
-                const previousState = restaurant.isAcceptingOrders ?? true;
-                const nextState = !previousState;
-                // Instant 0ms Optimistic UI update
-                setRestaurant((prev: any) => ({ ...prev, isAcceptingOrders: nextState }));
-                try {
-                  const res = await api.put(`/api/restaurants/${restaurant.id}`, {
-                    isAcceptingOrders: nextState,
-                  });
-                  const updatedRest = res.data.restaurant;
-                  setRestaurant(updatedRest);
-                  localStorage.setItem('restaurant', JSON.stringify(updatedRest));
-                } catch (err) {
-                  // Revert if API failed
-                  setRestaurant((prev: any) => ({ ...prev, isAcceptingOrders: previousState }));
-                  console.error(err);
-                  alert('Could not toggle kitchen status.');
-                }
-              }}
-              className={`w-full py-2.5 px-3 rounded-xl text-xs font-bold transition-all active:scale-95 duration-100 flex items-center justify-between border cursor-pointer select-none ${
-                (restaurant.isAcceptingOrders ?? true)
-                  ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-700 hover:bg-emerald-500/20'
-                  : 'bg-red-500/10 border-red-500/20 text-red-700 hover:bg-red-500/20'
-              }`}
-            >
-              <span className="flex items-center gap-1.5 font-bold">
-                <span className={`w-2 h-2 rounded-full ${restaurant.isAcceptingOrders ?? true ? 'bg-emerald-500 animate-ping' : 'bg-red-500'}`}></span>
-                {restaurant.isAcceptingOrders ?? true ? 'Orders OPEN' : 'Orders PAUSED'}
-              </span>
-              <span className="text-[10px] underline">Change</span>
-            </button>
-          </div>
-        </div>
-
-        <div className="pt-6 border-t border-[#EAE8E4] mt-6 md:mt-0 flex flex-col gap-4">
-          <div className="flex items-center gap-3 px-2">
-            <div className="w-9 h-9 rounded-full bg-[#5E6F58]/10 border border-[#5E6F58]/20 flex items-center justify-center text-[#5E6F58] font-bold uppercase">
-              {user.name ? user.name[0] : 'U'}
-            </div>
-            <div className="truncate">
-              <p className="text-xs font-bold text-[#1C1917] leading-tight">{user.name}</p>
-              <p className="text-[10px] text-[#7A7571] truncate mt-0.5">{user.email}</p>
-            </div>
-          </div>
+      {/* Nav */}
+      <nav className="flex-1 p-4 space-y-1">
+        {navItems.map(({ id, label, icon: Icon }) => (
           <button
-            onClick={handleLogout}
-            className="flex items-center gap-2 w-full px-4 py-2.5 border border-[#EAE8E4] hover:bg-[#F6F4F0] text-[#7A7571] hover:text-red-600 rounded-xl text-xs font-bold transition-all"
+            key={id}
+            onClick={() => { setActiveTab(id); setSidebarOpen(false); }}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
+              activeTab === id
+                ? 'bg-white text-[var(--sage)] shadow-md'
+                : 'text-white/70 hover:text-white hover:bg-white/10'
+            }`}
           >
-            <LogOut size={14} />
-            Logout
+            <Icon size={17} />
+            {label}
+          </button>
+        ))}
+
+        {/* Kitchen toggle */}
+        <div className="pt-4 mt-4 border-t border-white/10">
+          <p className="text-white/40 text-[10px] uppercase tracking-widest px-4 mb-2">Kitchen Status</p>
+          <button
+            type="button"
+            onClick={async () => {
+              const previousState = restaurant.isAcceptingOrders ?? true;
+              const nextState = !previousState;
+              setRestaurant((prev: any) => ({ ...prev, isAcceptingOrders: nextState }));
+              try {
+                const res = await api.put(`/api/restaurants/${restaurant.id}`, { isAcceptingOrders: nextState });
+                const updatedRest = res.data.restaurant;
+                setRestaurant(updatedRest);
+                localStorage.setItem('restaurant', JSON.stringify(updatedRest));
+              } catch (err) {
+                setRestaurant((prev: any) => ({ ...prev, isAcceptingOrders: previousState }));
+                alert('Could not toggle kitchen status.');
+              }
+            }}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all cursor-pointer ${
+              (restaurant.isAcceptingOrders ?? true)
+                ? 'bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30'
+                : 'bg-red-500/20 text-red-300 hover:bg-red-500/30'
+            }`}
+          >
+            {(restaurant.isAcceptingOrders ?? true)
+              ? <><CheckCircle2 size={17} /> Orders Open</>
+              : <><PauseCircle size={17} /> Orders Paused</>
+            }
+            <span className="ml-auto text-[10px] opacity-60">Toggle</span>
           </button>
         </div>
+      </nav>
+
+      {/* User footer */}
+      <div className="p-4 border-t border-white/10 space-y-3">
+        <div className="flex items-center gap-3 px-2">
+          <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-sm uppercase shrink-0">
+            {user.name ? user.name[0] : 'U'}
+          </div>
+          <div className="truncate">
+            <p className="text-white text-sm font-semibold leading-tight truncate">{user.name}</p>
+            <p className="text-white/40 text-xs truncate">{user.email}</p>
+          </div>
+        </div>
+        <button
+          onClick={handleLogout}
+          className="w-full flex items-center gap-2 px-4 py-2.5 rounded-xl text-white/60 hover:text-red-300 hover:bg-red-500/10 text-sm font-medium transition-all"
+        >
+          <LogOut size={15} /> Logout
+        </button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen bg-[var(--cream)] flex">
+      {/* Desktop Sidebar */}
+      <aside className="hidden md:flex w-64 bg-[var(--sage)] flex-col shrink-0 sticky top-0 h-screen">
+        <SidebarContent />
       </aside>
 
-      {/* Main Content Space */}
-      <main className="flex-1 p-6 md:p-10 overflow-y-auto max-w-5xl">
-        {announcement && (
-          <div className="bg-amber-500/10 border border-amber-500/20 text-amber-900 px-4 py-3 rounded-2xl flex items-center gap-3 text-xs mb-6 shadow-sm">
-            <Megaphone size={18} className="text-amber-700 shrink-0" />
-            <div className="flex-1 font-medium">
-              <span className="font-bold uppercase tracking-wider text-[10px] bg-amber-500/20 px-2 py-0.5 rounded text-amber-800 mr-2">Platform Announcement</span>
-              {announcement.message}
-            </div>
+      {/* Mobile sidebar overlay */}
+      {sidebarOpen && (
+        <div className="fixed inset-0 z-50 flex md:hidden">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setSidebarOpen(false)} />
+          <div className="relative w-64 bg-[var(--sage)] h-full z-10">
+            <button onClick={() => setSidebarOpen(false)} className="absolute top-4 right-4 text-white/60 hover:text-white">
+              <X size={20} />
+            </button>
+            <SidebarContent />
           </div>
-        )}
+        </div>
+      )}
 
-        {activeTab === 'overview' && (
-          <div className="space-y-8">
-            {/* Cafe Details Card */}
-            <div className="bg-white border border-[#EAE8E4] rounded-2xl p-8 shadow-[0_4px_20px_rgb(28,25,23,0.01)] space-y-6">
-              <div className="flex justify-between items-start border-b border-[#EAE8E4] pb-4">
-                <div>
-                  <h2 className="text-xl font-bold text-[#1C1917]">Cafe Profile</h2>
-                  <p className="text-xs text-[#7A7571] mt-0.5">Manage your public information and logo</p>
+      {/* Main */}
+      <main className="flex-1 flex flex-col min-h-screen overflow-x-hidden">
+        {/* Mobile topbar */}
+        <div className="md:hidden flex items-center justify-between px-5 py-4 bg-[var(--sage)] sticky top-0 z-40">
+          <h1 className="font-display text-xl text-white font-medium italic">MenuQR</h1>
+          <button onClick={() => setSidebarOpen(true)} className="text-white p-1">
+            <Menu size={22} />
+          </button>
+        </div>
+
+        <div className="flex-1 p-5 md:p-8 max-w-5xl w-full mx-auto">
+          {/* Announcement */}
+          {announcement && (
+            <div className="bg-[var(--amber-light)] border border-[var(--amber)]/30 text-[var(--brown)] px-4 py-3 rounded-2xl flex items-center gap-3 text-sm mb-6">
+              <Megaphone size={18} className="shrink-0" />
+              <span className="font-medium">{announcement.message}</span>
+            </div>
+          )}
+
+          {/* Overview Tab */}
+          {activeTab === 'overview' && (
+            <div className="space-y-6 fade-in">
+              {/* Cafe Profile Card */}
+              <div className="bg-white rounded-3xl border border-[var(--cream-border)] shadow-sm overflow-hidden">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--cream-dark)]">
+                  <div>
+                    <h2 className="text-lg font-semibold text-[var(--text)]">Cafe Profile</h2>
+                    <p className="text-xs text-[var(--muted)] mt-0.5">Public info, logo & payment settings</p>
+                  </div>
+                  {!editingProfile && (
+                    <button
+                      onClick={() => setEditingProfile(true)}
+                      className="flex items-center gap-1.5 px-4 py-2 border border-[var(--cream-border)] hover:bg-[var(--cream)] rounded-xl text-xs font-semibold text-[var(--muted)] hover:text-[var(--text)] transition-all"
+                    >
+                      <Settings size={13} /> Edit
+                    </button>
+                  )}
                 </div>
-                {!editingProfile && (
-                  <button
-                    onClick={() => setEditingProfile(true)}
-                    className="flex items-center gap-1.5 px-4 py-2 border border-[#EAE8E4] hover:bg-[#F6F4F0] rounded-lg text-xs font-bold transition-all text-[#7A7571] hover:text-[#1C1917]"
-                  >
-                    <Settings size={14} />
-                    Edit Details
-                  </button>
-                )}
+
+                <div className="p-6">
+                  {profileError && (
+                    <div className="mb-4 bg-[var(--red-light)] border border-red-200 text-[var(--red-soft)] text-sm p-3.5 rounded-xl">
+                      {profileError}
+                    </div>
+                  )}
+
+                  {editingProfile ? (
+                    <form onSubmit={handleSaveProfile} className="space-y-5">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-semibold text-[var(--muted)] uppercase tracking-wider mb-1.5">Cafe Name</label>
+                          <input type="text" required value={restName} onChange={(e) => setRestName(e.target.value)}
+                            className="w-full px-4 py-2.5 bg-[var(--cream)] border border-[var(--cream-border)] rounded-xl text-[var(--text)] focus:outline-none focus:ring-2 focus:ring-[var(--sage)] text-sm" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-[var(--muted)] uppercase tracking-wider mb-1.5">Contact Number</label>
+                          <input type="text" value={restContact} onChange={(e) => setRestContact(e.target.value)}
+                            className="w-full px-4 py-2.5 bg-[var(--cream)] border border-[var(--cream-border)] rounded-xl text-[var(--text)] focus:outline-none focus:ring-2 focus:ring-[var(--sage)] text-sm" placeholder="1234567890" />
+                        </div>
+                        <div className="md:col-span-2">
+                          <label className="block text-xs font-semibold text-[var(--muted)] uppercase tracking-wider mb-1.5">Address</label>
+                          <input type="text" value={restAddress} onChange={(e) => setRestAddress(e.target.value)}
+                            className="w-full px-4 py-2.5 bg-[var(--cream)] border border-[var(--cream-border)] rounded-xl text-[var(--text)] focus:outline-none focus:ring-2 focus:ring-[var(--sage)] text-sm" placeholder="123 Main Street, City" />
+                        </div>
+
+                        {/* UPI Section */}
+                        <div className="md:col-span-2 bg-[var(--sage-light)] rounded-2xl p-4 space-y-4">
+                          <p className="text-xs font-bold text-[var(--sage)] uppercase tracking-wider">UPI Payment Settings</p>
+
+                          <div className="bg-white rounded-xl p-4 space-y-2 border border-[var(--cream-border)]">
+                            <label className="block text-xs font-semibold text-[var(--text-mid)]">Option 1 — Upload UPI QR Image <span className="text-[var(--sage)] font-bold">(Recommended)</span></label>
+                            <div className="flex items-center gap-4">
+                              <div className="w-20 h-20 rounded-xl border border-[var(--cream-border)] bg-[var(--cream)] flex items-center justify-center overflow-hidden shrink-0">
+                                {upiQrPreview ? <img src={upiQrPreview} alt="UPI QR" className="w-full h-full object-contain p-1" /> : <QrCode className="text-[var(--muted)]" size={28} />}
+                              </div>
+                              <div>
+                                <label className="cursor-pointer inline-flex items-center px-4 py-2 bg-[var(--sage)] text-white rounded-xl text-xs font-bold hover:bg-[var(--sage-mid)] transition-all">
+                                  Choose File <input type="file" accept="image/*" className="hidden" onChange={handleUpiQrChange} />
+                                </label>
+                                <p className="text-xs text-[var(--muted)] mt-1.5">Upload screenshot of your GPay/PhonePe QR code</p>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs font-semibold text-[var(--muted)] mb-1.5">Option 2 — UPI ID</label>
+                              <input type="text" value={restUpiId} onChange={(e) => setRestUpiId(e.target.value)}
+                                className="w-full px-3 py-2 bg-white border border-[var(--cream-border)] rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--sage)]" placeholder="cafename@okaxis" />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-[var(--muted)] mb-1.5">UPI Payee Name</label>
+                              <input type="text" value={restUpiPayeeName} onChange={(e) => setRestUpiPayeeName(e.target.value)}
+                                className="w-full px-3 py-2 bg-white border border-[var(--cream-border)] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[var(--sage)]" placeholder="Cafe Name" />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="md:col-span-2">
+                          <label className="block text-xs font-semibold text-[var(--muted)] uppercase tracking-wider mb-2">Logo</label>
+                          <div className="flex items-center gap-4">
+                            <div className="w-16 h-16 rounded-2xl border border-[var(--cream-border)] bg-[var(--cream)] flex items-center justify-center overflow-hidden shrink-0">
+                              {logoPreview ? <img src={logoPreview} alt="Logo" className="w-full h-full object-cover" /> : <Camera className="text-[var(--muted)]" size={22} />}
+                            </div>
+                            <label className="cursor-pointer px-4 py-2.5 border border-[var(--cream-border)] bg-white rounded-xl text-xs font-semibold text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--cream)] transition-all">
+                              Upload Logo <input type="file" accept="image/*" className="hidden" onChange={handleLogoChange} />
+                            </label>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-3 pt-2">
+                        <button type="submit" disabled={savingProfile}
+                          className="flex items-center gap-2 px-5 py-2.5 bg-[var(--sage)] hover:bg-[var(--sage-mid)] text-white rounded-xl text-sm font-semibold transition-all disabled:opacity-50">
+                          {savingProfile ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
+                          Save Changes
+                        </button>
+                        <button type="button" onClick={() => {
+                          setEditingProfile(false);
+                          setLogoPreview(restaurant.logoUrl ? (restaurant.logoUrl.startsWith('http') ? restaurant.logoUrl : `${API_BASE_URL}${restaurant.logoUrl}`) : null);
+                          setUpiQrPreview(restaurant.upiQrImageUrl ? (restaurant.upiQrImageUrl.startsWith('http') ? restaurant.upiQrImageUrl : `${API_BASE_URL}${restaurant.upiQrImageUrl}`) : null);
+                          setRestName(restaurant.name || '');
+                          setRestAddress(restaurant.address || '');
+                          setRestContact(restaurant.contactNumber || '');
+                          setRestUpiId(restaurant.upiId || '');
+                          setRestUpiPayeeName(restaurant.upiPayeeName || '');
+                        }}
+                          className="px-5 py-2.5 border border-[var(--cream-border)] text-[var(--muted)] rounded-xl text-sm font-semibold hover:bg-[var(--cream)] transition-all">
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
+                  ) : (
+                    <div className="flex flex-col sm:flex-row items-start gap-6">
+                      <div className="w-20 h-20 rounded-2xl bg-[var(--cream)] border border-[var(--cream-border)] flex items-center justify-center overflow-hidden shrink-0">
+                        {restaurant.logoUrl && !logoError
+                          ? <img src={restaurant.logoUrl.startsWith('http') ? restaurant.logoUrl : `${API_BASE_URL}${restaurant.logoUrl}`} alt="Logo" onError={() => setLogoError(true)} className="w-full h-full object-cover" />
+                          : <Store size={30} className="text-[var(--muted)]" />
+                        }
+                      </div>
+                      <div className="flex-1 space-y-1">
+                        <h3 className="text-2xl font-display font-medium text-[var(--text)]">{restaurant.name}</h3>
+                        <p className="text-sm text-[var(--muted)]">{restaurant.address || 'No address set'}</p>
+                        <p className="text-xs text-[var(--muted)]">📞 {restaurant.contactNumber || 'No contact'}</p>
+                      </div>
+                      <div className="bg-[var(--sage-light)] border border-[var(--sage)]/20 p-3.5 rounded-2xl min-w-[160px] text-xs space-y-1">
+                        <p className="text-[10px] font-bold text-[var(--sage)] uppercase tracking-wider">UPI Status</p>
+                        {restaurant.upiQrImageUrl ? (
+                          <span className="inline-flex items-center gap-1 bg-emerald-500/10 text-emerald-700 border border-emerald-500/20 px-2 py-0.5 rounded-lg font-bold text-[10px]">✓ QR Uploaded</span>
+                        ) : restaurant.upiId ? (
+                          <>
+                            <span className="inline-flex items-center gap-1 bg-emerald-500/10 text-emerald-700 border border-emerald-500/20 px-2 py-0.5 rounded-lg font-bold text-[10px]">✓ UPI ID Active</span>
+                            <p className="font-mono text-[var(--text)]">{restaurant.upiId}</p>
+                          </>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 bg-[var(--amber-light)] text-[var(--amber)] border border-[var(--amber)]/30 px-2 py-0.5 rounded-lg font-bold text-[10px]">Not Configured</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
-              {profileError && (
-                <div className="bg-red-500/5 border border-red-500/20 text-red-700 text-xs p-4 rounded-xl">
-                  {profileError}
-                </div>
-              )}
-
-              {editingProfile ? (
-                <form onSubmit={handleSaveProfile} className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-semibold uppercase tracking-wider text-[#7A7571]">Cafe Name</label>
-                      <input
-                        type="text"
-                        required
-                        value={restName}
-                        onChange={(e) => setRestName(e.target.value)}
-                        className="mt-2 block w-full px-4 py-2.5 bg-[#F6F4F0] border border-[#E5E2DC] rounded-xl text-[#1C1917] focus:outline-none focus:ring-1 focus:ring-[#5E6F58] focus:border-[#5E6F58] text-sm transition-all"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold uppercase tracking-wider text-[#7A7571]">Contact Number</label>
-                      <input
-                        type="text"
-                        value={restContact}
-                        onChange={(e) => setRestContact(e.target.value)}
-                        className="mt-2 block w-full px-4 py-2.5 bg-[#F6F4F0] border border-[#E5E2DC] rounded-xl text-[#1C1917] focus:outline-none focus:ring-1 focus:ring-[#5E6F58] focus:border-[#5E6F58] text-sm transition-all"
-                        placeholder="1234567890"
-                      />
-                    </div>
-                    <div className="md:col-span-2">
-                      <label className="block text-xs font-semibold uppercase tracking-wider text-[#7A7571]">Address</label>
-                      <input
-                        type="text"
-                        value={restAddress}
-                        onChange={(e) => setRestAddress(e.target.value)}
-                        className="mt-2 block w-full px-4 py-2.5 bg-[#F6F4F0] border border-[#E5E2DC] rounded-xl text-[#1C1917] focus:outline-none focus:ring-1 focus:ring-[#5E6F58] focus:border-[#5E6F58] text-sm transition-all"
-                        placeholder="123 Main Street, City"
-                      />
-                    </div>
-                    
-                    {/* UPI Settings Fields */}
-                    <div className="md:col-span-2 pt-2 border-t border-[#EAE8E4] space-y-4">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold uppercase tracking-wider text-[#5E6F58]">Direct UPI Payment Settings</span>
-                        <span className="text-[10px] text-slate-400 font-medium">(Allows customers to scan & pay via GPay, PhonePe, Paytm, etc.)</span>
-                      </div>
-
-                      {/* Primary Path: Upload UPI QR Code Image */}
-                      <div className="bg-[#FAF9F5] border border-[#EAE8E4] p-4 rounded-xl space-y-2">
-                        <label className="block text-xs font-semibold uppercase tracking-wider text-[#1C1917]">
-                          Option 1 (Primary): Upload your UPI QR Code Image
-                        </label>
-                        <div className="flex items-center gap-4">
-                          <div className="relative w-24 h-24 rounded-xl border border-[#E5E2DC] bg-white flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
-                            {upiQrPreview ? (
-                              <img src={upiQrPreview} alt="UPI QR Code" className="w-full h-full object-contain p-1" />
-                            ) : (
-                              <QrCode className="text-slate-400" size={32} />
-                            )}
-                          </div>
-                          <div className="space-y-2">
-                            <label className="cursor-pointer inline-flex items-center justify-center border border-[#E5E2DC] hover:border-[#5E6F58]/50 bg-white px-4 py-2.5 rounded-xl hover:bg-[#EAE8E4] transition-all text-xs font-bold text-[#7A7571] hover:text-[#1C1917] shadow-sm">
-                              <span>Choose QR Image File</span>
-                              <input type="file" accept="image/*" className="hidden" onChange={handleUpiQrChange} />
-                            </label>
-                            <p className="text-[10px] text-[#7A7571] leading-tight">
-                              Upload a screenshot/photo of your official GPay/PhonePe/Paytm QR code. This will be shown directly to customers.
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Optional Fallback Path: UPI ID Text Input */}
-                      <div className="space-y-2 pt-1">
-                        <label className="block text-xs font-semibold uppercase tracking-wider text-[#7A7571]">
-                          Option 2 (Optional Fallback): Enter UPI ID / Payee Name
-                        </label>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-[11px] font-semibold text-[#7A7571]">UPI ID / VPA</label>
-                            <input
-                              type="text"
-                              value={restUpiId}
-                              onChange={(e) => setRestUpiId(e.target.value)}
-                              className="mt-1 block w-full px-4 py-2 bg-[#F6F4F0] border border-[#E5E2DC] rounded-xl text-[#1C1917] focus:outline-none focus:ring-1 focus:ring-[#5E6F58] focus:border-[#5E6F58] text-sm font-mono transition-all"
-                              placeholder="e.g. cafename@okaxis"
-                            />
-                            <p className="text-[10px] text-[#7A7571] mt-1">Must contain '@' and no spaces.</p>
-                          </div>
-                          <div>
-                            <label className="block text-[11px] font-semibold text-[#7A7571]">UPI Payee Name</label>
-                            <input
-                              type="text"
-                              value={restUpiPayeeName}
-                              onChange={(e) => setRestUpiPayeeName(e.target.value)}
-                              className="mt-1 block w-full px-4 py-2 bg-[#F6F4F0] border border-[#E5E2DC] rounded-xl text-[#1C1917] focus:outline-none focus:ring-1 focus:ring-[#5E6F58] focus:border-[#5E6F58] text-sm transition-all"
-                              placeholder="e.g. Cafe Name / Owner Name"
-                            />
-                            <p className="text-[10px] text-[#7A7571] mt-1">Name displayed in customer's UPI app.</p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="md:col-span-2">
-                      <label className="block text-xs font-semibold uppercase tracking-wider text-[#7A7571] mb-1">Logo</label>
-                      <div className="flex items-center gap-4">
-                        <div className="relative w-16 h-16 rounded-xl border border-[#E5E2DC] bg-[#F6F4F0] flex items-center justify-center overflow-hidden">
-                          {logoPreview ? (
-                            <img src={logoPreview} alt="Logo" className="w-full h-full object-cover" />
-                          ) : (
-                            <Camera className="text-slate-400" size={24} />
-                          )}
-                        </div>
-                        <label className="cursor-pointer flex items-center justify-center border border-[#E5E2DC] hover:border-[#5E6F58]/50 bg-[#F6F4F0] px-4 py-3 rounded-xl hover:bg-[#EAE8E4] transition-all text-xs font-bold text-[#7A7571] hover:text-[#1C1917]">
-                          <span>Upload Logo</span>
-                          <input type="file" accept="image/*" className="hidden" onChange={handleLogoChange} />
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="pt-2 flex gap-3">
-                    <button
-                      type="submit"
-                      disabled={savingProfile}
-                      className="flex items-center gap-2 px-5 py-2.5 bg-[#5E6F58] hover:bg-[#4E5D49] text-white rounded-xl text-xs font-bold transition-all disabled:opacity-50"
-                    >
-                      {savingProfile ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
-                      Save Changes
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditingProfile(false);
-                        setLogoPreview(restaurant.logoUrl ? (restaurant.logoUrl.startsWith('http') ? restaurant.logoUrl : `${API_BASE_URL}${restaurant.logoUrl}`) : null);
-                        setUpiQrPreview(restaurant.upiQrImageUrl ? (restaurant.upiQrImageUrl.startsWith('http') ? restaurant.upiQrImageUrl : `${API_BASE_URL}${restaurant.upiQrImageUrl}`) : null);
-                        setRestName(restaurant.name || '');
-                        setRestAddress(restaurant.address || '');
-                        setRestContact(restaurant.contactNumber || '');
-                        setRestUpiId(restaurant.upiId || '');
-                        setRestUpiPayeeName(restaurant.upiPayeeName || '');
-                      }}
-                      className="px-5 py-2.5 border border-[#EAE8E4] text-[#7A7571] rounded-xl text-xs font-bold hover:bg-[#F6F4F0]"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </form>
-              ) : (
-                <div className="flex flex-col sm:flex-row items-start justify-between gap-6">
-                  <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
-                    <div className="w-20 h-20 rounded-2xl bg-[#F6F4F0] border border-[#EAE8E4] flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
-                      {restaurant.logoUrl && !logoError ? (
-                        <img
-                          src={
-                            restaurant.logoUrl.startsWith('http') || restaurant.logoUrl.startsWith('data:')
-                              ? restaurant.logoUrl
-                              : `${API_BASE_URL}${restaurant.logoUrl}`
-                          }
-                          alt="Logo"
-                          onError={() => setLogoError(true)}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <Store size={32} className="text-[#7A7571]" />
-                      )}
-                    </div>
-
-                    <div className="text-center sm:text-left space-y-1">
-                      <h3 className="text-2xl font-bold text-[#1C1917] tracking-tight">{restaurant.name}</h3>
-                      <p className="text-sm text-[#7A7571]">{restaurant.address || 'No address registered'}</p>
-                      <p className="text-xs text-[#7A7571] font-semibold">Contact: {restaurant.contactNumber || 'N/A'}</p>
-                    </div>
-                  </div>
-
-                  {/* UPI Details Summary Badge */}
-                  <div className="bg-[#FAF9F5] border border-[#EAE8E4] p-3.5 rounded-xl w-full sm:w-auto text-xs space-y-1">
-                    <span className="text-[10px] font-bold text-[#7A7571] uppercase tracking-wider block">UPI QR Status</span>
-                    {restaurant.upiQrImageUrl ? (
-                      <div>
-                        <span className="bg-emerald-500/10 text-emerald-700 border border-emerald-500/20 px-2 py-0.5 rounded font-bold text-[10px] uppercase inline-block">Uploaded QR Active</span>
-                        <div className="mt-1 flex items-center gap-2">
-                          <img 
-                            src={restaurant.upiQrImageUrl.startsWith('http') ? restaurant.upiQrImageUrl : `${API_BASE_URL}${restaurant.upiQrImageUrl}`} 
-                            alt="QR Thumbnail" 
-                            className="w-8 h-8 object-contain rounded bg-white border border-[#EAE8E4]" 
-                          />
-                          <span className="text-[10px] text-slate-500">Custom QR Image Uploaded</span>
-                        </div>
-                      </div>
-                    ) : restaurant.upiId ? (
-                      <div>
-                        <span className="bg-emerald-500/10 text-emerald-700 border border-emerald-500/20 px-2 py-0.5 rounded font-bold text-[10px] uppercase inline-block">UPI ID Active</span>
-                        <p className="text-xs font-mono font-bold text-[#1C1917] mt-1">{restaurant.upiId}</p>
-                        {restaurant.upiPayeeName && <p className="text-[10px] text-[#7A7571]">Payee: {restaurant.upiPayeeName}</p>}
-                      </div>
-                    ) : (
-                      <div>
-                        <span className="bg-amber-500/10 text-amber-700 border border-amber-500/20 px-2 py-0.5 rounded font-bold text-[10px] uppercase inline-block">Not Configured</span>
-                        <p className="text-[10px] text-[#7A7571] mt-1">Upload QR image or set UPI ID to enable "Pay via UPI"</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
+              {/* QR Section */}
+              {restaurant.id && <QRSection restaurantId={restaurant.id} />}
             </div>
+          )}
 
-            {/* QR Card */}
-            {restaurant.id && <QRSection restaurantId={restaurant.id} />}
-          </div>
-        )}
-
-        {activeTab === 'menu' && restaurant.id && (
-          <MenuBuilder restaurantId={restaurant.id} />
-        )}
-
-        {activeTab === 'orders' && restaurant.id && (
-          <LiveOrders restaurantId={restaurant.id} />
-        )}
-
-        {activeTab === 'analytics' && restaurant.id && (
-          <AnalyticsView restaurantId={restaurant.id} />
-        )}
+          {activeTab === 'menu' && restaurant.id && <div className="fade-in"><MenuBuilder restaurantId={restaurant.id} /></div>}
+          {activeTab === 'orders' && restaurant.id && <div className="fade-in"><LiveOrders restaurantId={restaurant.id} /></div>}
+          {activeTab === 'analytics' && restaurant.id && <div className="fade-in"><AnalyticsView restaurantId={restaurant.id} /></div>}
+        </div>
       </main>
     </div>
   );

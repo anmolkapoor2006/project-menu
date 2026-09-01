@@ -21,4 +21,20 @@ api.interceptors.request.use(
   }
 );
 
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401 && !window.location.pathname.startsWith('/menu/')) {
+      // Only clear and redirect if we're in the admin/dashboard portal, not customer menu
+      if (window.location.pathname.startsWith('/dashboard') || window.location.pathname.startsWith('/admin')) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        localStorage.removeItem('restaurant');
+        window.location.href = '/login';
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 export default api;

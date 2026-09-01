@@ -2,11 +2,24 @@ import { Response } from 'express';
 import prisma from '../prisma';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
 
+async function isAuthorizedForRestaurant(user: any, restaurantId: string): Promise<boolean> {
+  if (!user) return false;
+  if (user.role === 'SUPER_ADMIN') return true;
+  if (user.restaurantId === restaurantId) return true;
+  const userId = user.id || user.userId;
+  if (userId) {
+    const restaurant = await prisma.restaurant.findUnique({ where: { id: restaurantId } });
+    if (restaurant && restaurant.ownerId === userId) return true;
+  }
+  return false;
+}
+
 export async function getRestaurantAnalytics(req: AuthenticatedRequest, res: Response) {
   try {
     const { id: restaurantId } = req.params;
 
-    if (!req.user || (req.user.role !== 'SUPER_ADMIN' && req.user.restaurantId !== restaurantId)) {
+    const isAuth = await isAuthorizedForRestaurant(req.user, restaurantId);
+    if (!isAuth) {
       return res.status(403).json({ error: 'Not authorized to view these analytics' });
     }
 

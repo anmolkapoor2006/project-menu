@@ -155,11 +155,24 @@ export async function getOrderById(req: Request, res: Response) {
   }
 }
 
+async function isAuthorizedForRestaurant(user: any, restaurantId: string): Promise<boolean> {
+  if (!user) return false;
+  if (user.role === 'SUPER_ADMIN') return true;
+  if (user.restaurantId === restaurantId) return true;
+  const userId = user.id || user.userId;
+  if (userId) {
+    const restaurant = await prisma.restaurant.findUnique({ where: { id: restaurantId } });
+    if (restaurant && restaurant.ownerId === userId) return true;
+  }
+  return false;
+}
+
 export async function getOrders(req: AuthenticatedRequest, res: Response) {
   try {
     const { id: restaurantId } = req.params;
 
-    if (!req.user || (req.user.role !== 'SUPER_ADMIN' && req.user.restaurantId !== restaurantId)) {
+    const isAuth = await isAuthorizedForRestaurant(req.user, restaurantId);
+    if (!isAuth) {
       return res.status(403).json({ error: 'Not authorized to view these orders' });
     }
 
@@ -197,7 +210,8 @@ export async function updateOrderStatus(req: AuthenticatedRequest, res: Response
       return res.status(404).json({ error: 'Order not found' });
     }
 
-    if (!req.user || (req.user.role !== 'SUPER_ADMIN' && req.user.restaurantId !== order.restaurantId)) {
+    const isAuth = await isAuthorizedForRestaurant(req.user, order.restaurantId);
+    if (!isAuth) {
       return res.status(403).json({ error: 'Not authorized to modify this order' });
     }
 

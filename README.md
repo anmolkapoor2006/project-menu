@@ -1,74 +1,58 @@
-# Multi-Tenant Digital Menu & QR Ordering Platform - Phase 1
+# QR Menu & Digital Ordering Platform
 
-This repository contains Phase 1 of the multi-tenant digital menu SaaS platform for cafes and restaurants.
+A modern, multi-tenant QR digital menu and real-time ordering SaaS platform built for cafes and restaurants.
 
-## Project Structure
-- `/backend`: Node.js + Express + TypeScript + Prisma ORM + PostgreSQL.
-- `/frontend`: React + Vite + TypeScript + Tailwind CSS.
-- `docker-compose.yml`: Launches PostgreSQL, Backend, and Frontend containers concurrently.
+## 🚀 Key Features
 
-## Local Development Setup
+- **📱 Customer-Facing Digital Menu**: Mobile-optimized, fast, search & filter by Veg/Non-Veg, category drawer, smooth animations.
+- **⚡ Live Kitchen / Orders Dashboard**: Real-time order synchronization with WebSockets (`Socket.io`) and browser-supported audio chime alerts.
+- **🔔 Staff Calling System**: Customers can ring staff with 15-second persistent ringtones and instant top notifications.
+- **💸 UPI & Counter Checkout**: Direct UPI QR / app payment deep-links without third-party gateway friction, plus manual payment verification.
+- **🎨 Dynamic Menu Builder**: Category management, menu items, pricing, custom badges (Bestseller, Spicy, Chef Special, New), and availability toggle.
+- **📊 Real-Time Analytics**: Scan tracking, traffic trends, conversion rates, and item-by-item revenue exportable as CSV.
+- **🛡️ Admin & Super Admin Controls**: Multi-tenant cafe management, platform-wide metrics, broadcasts, and kitchen on/off pause switch.
 
-### Prerequisite: Docker
-Make sure Docker and Docker Compose are installed on your system.
+---
 
-### Running with Docker Compose
-1. Ensure ports `5432` (PostgreSQL), `5000` (Backend API), and `5173` (Frontend Web) are free.
-2. In the root directory, run:
-   ```bash
-   docker-compose up --build
-   ```
-3. Once all containers start:
-   - Database migrations will apply automatically.
-   - The database will be seeded.
-   - Frontend will be available at [http://localhost:5173](http://localhost:5173).
-   - Backend API will be running at [http://localhost:5000](http://localhost:5000).
+## 🛠️ Tech Stack
 
-### Seeded Credentials
-During development, the database is seeded with a default Super Admin account:
-- **Email:** `admin@qrmenu.com`
-- **Password:** `AdminPassword123`
+- **Frontend**: React (Vite, TypeScript), TailwindCSS, Recharts, Lucide Icons, Socket.io-client, Axios
+- **Backend**: Node.js, Express (TypeScript), Prisma ORM, PostgreSQL / SQLite, Socket.io, JWT Authentication, Zod, Multer
+- **Deployment**: Vercel / Netlify (Frontend) & Vercel / Node.js Host (Backend)
 
-### Manual Execution (Without Docker)
-If you prefer running individual services locally on your machine:
+---
 
-#### 1. PostgreSQL Database
-Ensure you have a PostgreSQL server running locally, create a database named `qrmenudb`, and grab the connection URL.
+## 📦 Getting Started
 
-#### 2. Backend Setup
-1. Change directory to `/backend`:
-   ```bash
-   cd backend
-   ```
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-3. Copy environment template:
-   ```bash
-   cp .env.example .env
-   ```
-   Modify the `DATABASE_URL` in `.env` to point to your local PostgreSQL instance.
-4. Run migrations and seed script:
-   ```bash
-   npx prisma migrate dev --name init
-   npx prisma db seed
-   ```
-5. Start development server:
-   ```bash
-   npm run dev
-   ```
+### 1. Backend Setup
+```bash
+cd backend
+npm install
+npm run build
+npm run dev
+```
 
-#### 3. Frontend Setup
-1. Change directory to `/frontend`:
-   ```bash
-   cd ../frontend
-   ```
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-3. Start Vite dev server:
-   ```bash
-   npm run dev
-   ```
+### 2. Frontend Setup
+```bash
+cd frontend
+npm install
+npm run build
+npm run dev
+```
+
+---
+
+## 🌐 Environment Variables
+
+### Backend (`backend/.env`)
+```env
+PORT=5001
+FRONTEND_URL=http://localhost:5173
+DATABASE_URL="postgresql://user:password@localhost:5432/qrmenu?schema=public"
+JWT_SECRET="your_jwt_secret_key"
+```
+
+### Frontend (`frontend/.env`)
+```env
+VITE_API_URL="http://localhost:5001"
+```

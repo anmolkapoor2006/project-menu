@@ -68,13 +68,6 @@ export default function Login() {
           <blockquote className="text-white/90 font-display text-3xl font-light leading-snug italic">
             "The simplest way to bring your cafe menu into the digital age."
           </blockquote>
-          <div className="flex items-center gap-4">
-            <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-sm">☕</div>
-            <div>
-              <p className="text-white text-sm font-semibold">Trusted by 100+ Cafes</p>
-              <p className="text-white/60 text-xs">Across India</p>
-            </div>
-          </div>
         </div>
 
         <div className="relative z-10 flex gap-6 text-white/50 text-xs">

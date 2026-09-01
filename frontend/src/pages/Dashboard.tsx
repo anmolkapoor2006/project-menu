@@ -6,10 +6,12 @@ import MenuBuilder from './MenuBuilder';
 import LiveOrders from '../components/LiveOrders';
 import AnalyticsView from '../components/AnalyticsView';
 import { API_BASE_URL } from '../config';
+import io from 'socket.io-client';
+import { startStaffCallRingtone, unlockAudioContext } from '../utils/audio';
 import {
   Store, UtensilsCrossed, ClipboardList, BarChart3, LogOut,
   Camera, Loader2, Save, Settings, Megaphone, QrCode, Menu, X,
-  CheckCircle2, PauseCircle
+  CheckCircle2, PauseCircle, Bell
 } from 'lucide-react';
 
 export default function Dashboard() {
@@ -35,6 +37,18 @@ export default function Dashboard() {
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileError, setProfileError] = useState('');
 
+  // Staff Call Alert & 15-second Ringtone tune state
+  const [staffCallAlert, setStaffCallAlert] = useState<{ tableNumber: string; requestType: string; timestamp: string } | null>(null);
+  const [isRinging, setIsRinging] = useState(false);
+  const stopRingtoneRef = React.useRef<(() => void) | null>(null);
+
+  // Sound armed state — persisted so the owner only needs to enable once per browser
+  const [audioArmed, setAudioArmed] = useState<boolean>(() => {
+    return localStorage.getItem('dashboard_audio_armed') === 'true';
+  });
+  // Ref so the socket callback always sees the latest value (no stale closure)
+  const audioArmedRef = React.useRef(audioArmed);
+  useEffect(() => { audioArmedRef.current = audioArmed; }, [audioArmed]);
 
   useEffect(() => {
     const fetchMe = async () => {
@@ -56,8 +70,15 @@ export default function Dashboard() {
           if (rest.logoUrl) setLogoPreview(rest.logoUrl.startsWith('http') ? rest.logoUrl : `${API_BASE_URL}${rest.logoUrl}`);
           if (rest.upiQrImageUrl) setUpiQrPreview(rest.upiQrImageUrl.startsWith('http') ? rest.upiQrImageUrl : `${API_BASE_URL}${rest.upiQrImageUrl}`);
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('Failed to fetch profile', err);
+        if (err.response?.status === 401 || err.response?.status === 403) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          localStorage.removeItem('restaurant');
+          navigate('/login');
+          return;
+        }
         const userJson = localStorage.getItem('user');
         const restJson = localStorage.getItem('restaurant');
         if (userJson) setUser(JSON.parse(userJson));
@@ -84,6 +105,52 @@ export default function Dashboard() {
     fetchMe();
     fetchAnnouncement();
   }, []);
+
+  // Re-unlock audio context on any click (backup for page reloads when audioArmed is already true)
+  useEffect(() => {
+    if (!audioArmed) return;
+    const handleClick = () => unlockAudioContext();
+    window.addEventListener('click', handleClick, { once: true });
+    window.addEventListener('touchstart', handleClick, { once: true });
+    return () => {
+      window.removeEventListener('click', handleClick);
+      window.removeEventListener('touchstart', handleClick);
+    };
+  }, [audioArmed]);
+
+  // Global socket listener for Staff Call events
+  useEffect(() => {
+    if (!restaurant.id) return;
+
+    const socket = io(API_BASE_URL);
+    socket.on('connect', () => {
+      socket.emit('join_restaurant', restaurant.id);
+    });
+
+    socket.on('staff_call', (data: { tableNumber: string; requestType: string; timestamp: string }) => {
+      const armed = audioArmedRef.current;  // always fresh value
+
+      // Always show the visual alert
+      setStaffCallAlert(data);
+      setIsRinging(armed);
+
+      // Only play sound if owner has armed audio
+      if (armed) {
+        if (stopRingtoneRef.current) stopRingtoneRef.current();
+        const stopFn = startStaffCallRingtone(15000);
+        stopRingtoneRef.current = stopFn;
+        setTimeout(() => setIsRinging(false), 15000);
+      }
+    });
+
+    return () => {
+      if (stopRingtoneRef.current) {
+        stopRingtoneRef.current();
+        stopRingtoneRef.current = null;
+      }
+      socket.disconnect();
+    };
+  }, [restaurant.id]);
 
   const handleLogout = () => { localStorage.clear(); navigate('/login'); };
 
@@ -188,6 +255,30 @@ export default function Dashboard() {
             }
             <span className="ml-auto text-[10px] opacity-60">Toggle</span>
           </button>
+
+          {/* Test Ringtone button */}
+          <button
+            type="button"
+            onClick={() => {
+              // These must ALL run synchronously inside the click handler
+              // so the browser grants AudioContext permission
+              unlockAudioContext();
+              if (stopRingtoneRef.current) stopRingtoneRef.current();
+              const stopFn = startStaffCallRingtone(15000);
+              stopRingtoneRef.current = stopFn;
+              setStaffCallAlert({
+                tableNumber: 'Table 1 (Test)',
+                requestType: 'Call Waiter (Sound Test)',
+                timestamp: new Date().toISOString()
+              });
+              setIsRinging(true);
+              setTimeout(() => setIsRinging(false), 15000);
+            }}
+            className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl text-xs font-semibold text-amber-200 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/20 transition-all mt-3 cursor-pointer"
+          >
+            <span className="flex items-center gap-2">🔔 Test 15s Ringtone</span>
+            <span className="text-[10px] bg-amber-400/30 px-1.5 py-0.5 rounded text-amber-100 font-bold">▶ Play</span>
+          </button>
         </div>
       </nav>
 
@@ -213,7 +304,58 @@ export default function Dashboard() {
   );
 
   return (
-    <div className="min-h-screen bg-[var(--cream)] flex">
+    <div className="min-h-screen bg-[var(--cream)] flex relative">
+      {/* Premium Staff Call Notification */}
+      {staffCallAlert && (
+        <div className="fixed top-0 inset-x-0 z-[9999] flex justify-center px-4 pt-4 pointer-events-none">
+          <div className="notification-slide w-full max-w-md pointer-events-auto">
+            <div className="bg-[#0c0e14]/95 backdrop-blur-xl border border-white/[0.07] rounded-2xl px-4 py-3.5 shadow-2xl shadow-black/70 flex items-center gap-3.5">
+
+              {/* Pulsing bell */}
+              <div className="relative w-10 h-10 shrink-0">
+                <div className="absolute inset-0 rounded-full bg-rose-500/30 animate-ping" style={{ animationDuration: '1.3s' }} />
+                <div className="relative w-10 h-10 rounded-full bg-rose-500/15 border border-rose-500/25 flex items-center justify-center">
+                  <Bell size={17} className="text-rose-400" />
+                </div>
+              </div>
+
+              {/* Content */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="text-white text-sm font-semibold leading-tight">Staff Called</p>
+                  {isRinging && (
+                    <span className="inline-flex items-center gap-1 bg-rose-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-full">
+                      <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                      LIVE
+                    </span>
+                  )}
+                </div>
+                <p className="text-white/45 text-xs mt-0.5 truncate">
+                  {staffCallAlert.tableNumber ? `${staffCallAlert.tableNumber} · ` : ''}
+                  {staffCallAlert.requestType || 'Call Waiter'}
+                </p>
+              </div>
+
+              {/* Dismiss */}
+              <button
+                onClick={() => {
+                  if (stopRingtoneRef.current) {
+                    stopRingtoneRef.current();
+                    stopRingtoneRef.current = null;
+                  }
+                  setIsRinging(false);
+                  setStaffCallAlert(null);
+                }}
+                className="shrink-0 px-3 py-1.5 bg-white/[0.08] hover:bg-white/[0.16] border border-white/[0.08] text-white/60 hover:text-white text-xs font-medium rounded-xl transition-all cursor-pointer"
+              >
+                Dismiss
+              </button>
+
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex w-64 bg-[var(--sage)] flex-col shrink-0 sticky top-0 h-screen">
         <SidebarContent />
@@ -249,6 +391,55 @@ export default function Dashboard() {
               <Megaphone size={18} className="shrink-0" />
               <span className="font-medium">{announcement.message}</span>
             </div>
+          )}
+
+
+          {/* Sound Alerts Banner — only shown on tabs where audio matters */}
+          {(activeTab === 'overview' || activeTab === 'orders') && (
+            !audioArmed ? (
+              <div className="bg-gradient-to-r from-[var(--sage)] to-[var(--sage-mid)] rounded-2xl p-4 flex items-center justify-between gap-4 shadow-sm mb-6">
+                <div className="flex items-center gap-3 text-white">
+                  <div className="w-10 h-10 rounded-full bg-white/15 flex items-center justify-center shrink-0">
+                    <Bell size={18} />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-sm">Enable Sound Alerts</p>
+                    <p className="text-white/65 text-xs mt-0.5">Hear a ringtone instantly when customers call for service</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    unlockAudioContext();
+                    const stop = startStaffCallRingtone(1000);
+                    setTimeout(stop, 1000);
+                    setAudioArmed(true);
+                    localStorage.setItem('dashboard_audio_armed', 'true');
+                  }}
+                  className="shrink-0 bg-white text-[var(--sage)] font-bold text-sm px-4 py-2.5 rounded-xl hover:bg-[var(--cream)] transition-all active:scale-95 shadow-sm"
+                >
+                  Enable Now
+                </button>
+              </div>
+            ) : (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-3 flex items-center justify-between gap-3 mb-6">
+                <div className="flex items-center gap-2.5">
+                  <div className="relative w-2 h-2">
+                    <div className="absolute inset-0 rounded-full bg-emerald-500 live-ping" />
+                  </div>
+                  <p className="text-sm font-semibold text-emerald-800">Sound alerts active</p>
+                  <p className="text-emerald-600 text-xs hidden sm:block">— you'll hear a ringtone when customers call</p>
+                </div>
+                <button
+                  onClick={() => {
+                    setAudioArmed(false);
+                    localStorage.removeItem('dashboard_audio_armed');
+                  }}
+                  className="text-xs text-emerald-600 hover:text-emerald-800 font-medium transition-colors"
+                >
+                  Disable
+                </button>
+              </div>
+            )
           )}
 
           {/* Overview Tab */}
@@ -401,7 +592,7 @@ export default function Dashboard() {
           )}
 
           {activeTab === 'menu' && restaurant.id && <div className="fade-in"><MenuBuilder restaurantId={restaurant.id} /></div>}
-          {activeTab === 'orders' && restaurant.id && <div className="fade-in"><LiveOrders restaurantId={restaurant.id} /></div>}
+          {activeTab === 'orders' && restaurant.id && <div className="fade-in"><LiveOrders restaurantId={restaurant.id} audioArmed={audioArmed} /></div>}
           {activeTab === 'analytics' && restaurant.id && <div className="fade-in"><AnalyticsView restaurantId={restaurant.id} /></div>}
         </div>
       </main>

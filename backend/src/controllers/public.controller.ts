@@ -24,12 +24,17 @@ export async function getPublicMenu(req: Request, res: Response) {
       return res.status(404).json({ error: 'Restaurant not found or inactive' });
     }
 
+    // Cache public menu at CDN edge for 30 seconds, stale-while-revalidate 60s
+    // This eliminates cold-start latency for repeat visitors
+    res.setHeader('Cache-Control', 's-maxage=30, stale-while-revalidate=60');
+
     return res.json({ restaurant });
   } catch (error) {
     console.error(error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 }
+
 
 export async function logViewEvent(req: Request, res: Response) {
   try {

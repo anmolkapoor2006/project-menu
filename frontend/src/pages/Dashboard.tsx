@@ -1,10 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/api';
 import QRSection from '../components/QRSection';
-import MenuBuilder from './MenuBuilder';
-import LiveOrders from '../components/LiveOrders';
-import AnalyticsView from '../components/AnalyticsView';
 import { API_BASE_URL } from '../config';
 import io from 'socket.io-client';
 import { startStaffCallRingtone, unlockAudioContext } from '../utils/audio';
@@ -14,6 +11,17 @@ import {
   CheckCircle2, PauseCircle, Bell
 } from 'lucide-react';
 import { usePageMetadata } from '../utils/usePageMetadata';
+
+// Lazy-load heavy tabs — only downloaded when the tab is first opened
+const MenuBuilder = lazy(() => import('./MenuBuilder'));
+const LiveOrders = lazy(() => import('../components/LiveOrders'));
+const AnalyticsView = lazy(() => import('../components/AnalyticsView'));
+
+const TabLoader = () => (
+  <div className="flex justify-center items-center h-48">
+    <Loader2 className="animate-spin text-[var(--sage)]" size={32} />
+  </div>
+);
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -594,9 +602,9 @@ export default function Dashboard() {
             </div>
           )}
 
-          {activeTab === 'menu' && restaurant.id && <div className="fade-in"><MenuBuilder restaurantId={restaurant.id} /></div>}
-          {activeTab === 'orders' && restaurant.id && <div className="fade-in"><LiveOrders restaurantId={restaurant.id} audioArmed={audioArmed} /></div>}
-          {activeTab === 'analytics' && restaurant.id && <div className="fade-in"><AnalyticsView restaurantId={restaurant.id} /></div>}
+          {activeTab === 'menu' && restaurant.id && <div className="fade-in"><Suspense fallback={<TabLoader />}><MenuBuilder restaurantId={restaurant.id} /></Suspense></div>}
+          {activeTab === 'orders' && restaurant.id && <div className="fade-in"><Suspense fallback={<TabLoader />}><LiveOrders restaurantId={restaurant.id} audioArmed={audioArmed} /></Suspense></div>}
+          {activeTab === 'analytics' && restaurant.id && <div className="fade-in"><Suspense fallback={<TabLoader />}><AnalyticsView restaurantId={restaurant.id} /></Suspense></div>}
         </div>
       </main>
     </div>

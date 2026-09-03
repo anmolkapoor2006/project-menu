@@ -23,125 +23,86 @@ export async function getRestaurantAnalytics(req: AuthenticatedRequest, res: Res
       return res.status(403).json({ error: 'Not authorized to view these analytics' });
     }
 
-    // 1. Fetch total views & scans
-    const events = await prisma.qRScanEvent.findMany({
-      where: { restaurantId }
-    });
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
 
+    // Run ALL queries in parallel — ~5x faster than sequential
+    const [events, trendEvents, topItemsData, allOrders, todayOrders, orderItems] = await Promise.all([
+      // 1. All QR scan events
+      prisma.qRScanEvent.findMany({ where: { restaurantId } }),
+      // 2. Last 30-day trend events
+      prisma.qRScanEvent.findMany({
+        where: { restaurantId, timestamp: { gte: thirtyDaysAgo } },
+        orderBy: { timestamp: 'asc' },
+      }),
+      // 3. Top items by quantity
+      prisma.orderItem.groupBy({
+        by: ['menuItemId'],
+        where: { order: { restaurantId, status: { not: 'CANCELLED' } } },
+        _sum: { quantity: true },
+        orderBy: { _sum: { quantity: 'desc' } },
+        take: 5,
+      }),
+      // 4. All non-cancelled orders with items
+      prisma.order.findMany({
+        where: { restaurantId, status: { not: 'CANCELLED' } },
+        include: { items: true },
+      }),
+      // 5. Today's orders
+      prisma.order.findMany({
+        where: { restaurantId, status: { not: 'CANCELLED' }, createdAt: { gte: startOfToday } },
+        include: { items: true },
+      }),
+      // 6. All order items for product breakdown
+      prisma.orderItem.findMany({
+        where: { order: { restaurantId, status: { not: 'CANCELLED' } } },
+        include: { menuItem: { select: { name: true } } },
+      }),
+    ]);
+
+    // --- Compute metrics ---
     const totalViews = events.length;
     const totalScans = events.filter((e) => e.source === 'qr').length;
     const conversionRate = totalViews > 0 ? parseFloat(((totalScans / totalViews) * 100).toFixed(1)) : 0;
+    const totalOrders = allOrders.length;
 
-    // 2. Fetch daily view trend (last 30 days)
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const todayEarnings = todayOrders.reduce((sum, order) =>
+      sum + order.items.reduce((s, i) => s + Number(i.priceAtOrder) * i.quantity, 0), 0);
+    const totalEarnings = allOrders.reduce((sum, order) =>
+      sum + order.items.reduce((s, i) => s + Number(i.priceAtOrder) * i.quantity, 0), 0);
 
-    const trendEvents = await prisma.qRScanEvent.findMany({
-      where: {
-        restaurantId,
-        timestamp: { gte: thirtyDaysAgo }
-      },
-      orderBy: { timestamp: 'asc' }
-    });
-
-    // Group trendEvents by day
+    // 30-day trend
     const dailyDataMap = new Map<string, { date: string; views: number; scans: number }>();
-    // Pre-populate last 30 days with 0s
     for (let i = 29; i >= 0; i--) {
       const d = new Date();
       d.setDate(d.getDate() - i);
       const dateStr = d.toISOString().split('T')[0];
       dailyDataMap.set(dateStr, { date: dateStr, views: 0, scans: 0 });
     }
-
     trendEvents.forEach((event) => {
       const dateStr = event.timestamp.toISOString().split('T')[0];
       const existing = dailyDataMap.get(dateStr);
       if (existing) {
-        if (event.source === 'qr') {
-          existing.scans++;
-        }
+        if (event.source === 'qr') existing.scans++;
         existing.views++;
       }
     });
-
     const viewsTrend = Array.from(dailyDataMap.values());
 
-    // 3. Top items sold
-    const topItemsData = await prisma.orderItem.groupBy({
-      by: ['menuItemId'],
-      where: {
-        order: { restaurantId, status: { not: 'CANCELLED' } }
-      },
-      _sum: { quantity: true },
-      orderBy: { _sum: { quantity: 'desc' } },
-      take: 5,
-    });
-
+    // Top items
     const topItemDetails = await prisma.menuItem.findMany({
-      where: {
-        id: { in: topItemsData.map((d) => d.menuItemId) }
-      },
-      select: { id: true, name: true }
+      where: { id: { in: topItemsData.map((d) => d.menuItemId) } },
+      select: { id: true, name: true },
     });
-
     const itemDetailsMap = new Map(topItemDetails.map((item) => [item.id, item.name]));
-
     const topItems = topItemsData.map((data) => ({
       name: itemDetailsMap.get(data.menuItemId) || 'Unknown Item',
-      value: data._sum.quantity || 0
+      value: data._sum.quantity || 0,
     }));
 
-    // 4. Calculate Earnings (Today & All Time)
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
-
-    const todayOrders = await prisma.order.findMany({
-      where: {
-        restaurantId,
-        status: { not: 'CANCELLED' },
-        createdAt: { gte: startOfToday }
-      },
-      include: {
-        items: true
-      }
-    });
-
-    const todayEarnings = todayOrders.reduce((sum, order) => {
-      const orderTotal = order.items.reduce((itemSum, item) => itemSum + (Number(item.priceAtOrder) * item.quantity), 0);
-      return sum + orderTotal;
-    }, 0);
-
-    const allOrders = await prisma.order.findMany({
-      where: {
-        restaurantId,
-        status: { not: 'CANCELLED' }
-      },
-      include: {
-        items: true
-      }
-    });
-
-    const totalEarnings = allOrders.reduce((sum, order) => {
-      const orderTotal = order.items.reduce((itemSum, item) => itemSum + (Number(item.priceAtOrder) * item.quantity), 0);
-      return sum + orderTotal;
-    }, 0);
-
-    // 5. Per-Product Earnings Breakdown
-    const orderItems = await prisma.orderItem.findMany({
-      where: {
-        order: {
-          restaurantId,
-          status: { not: 'CANCELLED' }
-        }
-      },
-      include: {
-        menuItem: {
-          select: { name: true }
-        }
-      }
-    });
-
+    // Product earnings breakdown
     const productMap = new Map<string, { name: string; qtySold: number; totalRevenue: number }>();
     orderItems.forEach((item) => {
       const name = item.menuItem?.name || 'Unknown Item';
@@ -154,11 +115,7 @@ export async function getRestaurantAnalytics(req: AuthenticatedRequest, res: Res
         productMap.set(name, { name, qtySold: item.quantity, totalRevenue: revenue });
       }
     });
-
     const productEarnings = Array.from(productMap.values()).sort((a, b) => b.totalRevenue - a.totalRevenue);
-
-    // 6. Total orders count
-    const totalOrders = allOrders.length;
 
     return res.json({
       summary: {
@@ -180,6 +137,7 @@ export async function getRestaurantAnalytics(req: AuthenticatedRequest, res: Res
 }
 
 export async function getPlatformAnalytics(req: AuthenticatedRequest, res: Response) {
+
   try {
     if (!req.user || req.user.role !== 'SUPER_ADMIN') {
       return res.status(403).json({ error: 'Access denied. Super Admin role required.' });

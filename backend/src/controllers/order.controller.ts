@@ -52,9 +52,14 @@ export async function placeOrder(req: Request, res: Response) {
       where: { id: { in: menuItemIds } }
     });
 
+    // Validate all items exist BEFORE starting the transaction (return 400 not 500)
     const dbItemsMap = new Map(dbItems.map((item) => [item.id, item]));
+    const missingItemId = menuItemIds.find((id) => !dbItemsMap.has(id));
+    if (missingItemId) {
+      return res.status(400).json({ error: 'One or more menu items are no longer available. Please refresh the menu and try again.' });
+    }
 
-    // Build the transactions
+    // Build the transaction
     const resultOrder = await prisma.$transaction(async (tx) => {
       const order = await tx.order.create({
         data: {
@@ -67,10 +72,7 @@ export async function placeOrder(req: Request, res: Response) {
       });
 
       const orderItemsData = body.items.map((itemInput) => {
-        const menuItem = dbItemsMap.get(itemInput.menuItemId);
-        if (!menuItem) {
-          throw new Error(`Menu item not found for ID: ${itemInput.menuItemId}`);
-        }
+        const menuItem = dbItemsMap.get(itemInput.menuItemId)!;
         return {
           orderId: order.id,
           menuItemId: itemInput.menuItemId,
@@ -108,7 +110,7 @@ export async function placeOrder(req: Request, res: Response) {
       const io = getIO();
       io.to(`restaurant_${restaurant.id}`).emit('new_order', resultOrder);
     } catch (wsError) {
-      console.error('Failed to emit WebSocket event', wsError);
+      // Socket.io may not be initialized on serverless — non-fatal
     }
 
     return res.status(201).json({
@@ -120,7 +122,7 @@ export async function placeOrder(req: Request, res: Response) {
       return res.status(400).json({ error: error.errors[0].message });
     }
     console.error(error);
-    return res.status(500).json({ error: error instanceof Error ? error.message : 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 }
 

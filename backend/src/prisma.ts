@@ -8,7 +8,6 @@ export const prisma =
   globalForPrisma.prisma ??
   new PrismaClient({
     log: process.env.NODE_ENV === 'production' ? [] : ['error'],
-    // Reduce connection pool size for serverless — Neon handles pooling
     datasources: {
       db: {
         url: process.env.DATABASE_URL,
@@ -16,7 +15,9 @@ export const prisma =
     },
   });
 
-// In serverless environments, reuse the client across hot invocations
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+// Cache in globalThis for ALL environments — prevents new client creation
+// on Vercel warm invocations (multiple requests share one Node.js process)
+globalForPrisma.prisma = prisma;
 
 export default prisma;
+

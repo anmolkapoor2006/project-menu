@@ -10,6 +10,7 @@ import {
   Globe, Ban, CheckCircle, IndianRupee, TrendingUp, Search, 
   Trash2, ShieldCheck, UserPlus, X, Store, Megaphone, Send
 } from 'lucide-react';
+import { usePageMetadata } from '../utils/usePageMetadata';
 
 interface PlatformSummary {
   totalRestaurants: number;
@@ -43,6 +44,7 @@ interface TrafficTrend {
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
+  usePageMetadata('Super Admin Console | Platform Analytics', 'admin');
   const [summary, setSummary] = useState<PlatformSummary | null>(null);
   const [restaurants, setRestaurants] = useState<PlatformRestaurant[]>([]);
   const [trafficTrend, setTrafficTrend] = useState<TrafficTrend[]>([]);

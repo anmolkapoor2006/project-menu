@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import api from '../api/api';
 import { Loader2, Eye, EyeOff } from 'lucide-react';
+import { usePageMetadata } from '../utils/usePageMetadata';
 
 export default function Signup() {
+  usePageMetadata('Create Account | QR Digital Menu', 'default');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

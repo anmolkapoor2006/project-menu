@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="spoonGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ea580c"/>
+      <stop offset="100%" stop-color="#9a3412"/>
+    </linearGradient>
+  </defs>
+  <circle cx="32" cy="32" r="30" fill="url(#spoonGrad)"/>
+  <!-- Elegant Spoon & Fork / Cutlery Icon -->
+  <!-- Spoon -->
+  <g transform="translate(14, 12)">
+    <!-- Spoon Head -->
+    <path d="M12 4 C8 4 6 8 6 13 C6 18 9 21 12 23 L12 36 A2 2 0 0 0 16 36 L16 23 C19 21 22 18 22 13 C22 8 20 4 16 4 C14 4 13 4 12 4 Z" fill="#ffffff"/>
+    <ellipse cx="14" cy="13" rx="4" ry="7" fill="#fed7aa" opacity="0.4"/>
+    <!-- Fork -->
+    <path d="M26 4 L26 13 C26 17 28 19 30 21 L30 36 A2 2 0 0 0 34 36 L34 21 C36 19 38 17 38 13 L38 4 L36 4 L36 12 L33 12 L33 4 L31 4 L31 12 L28 12 L28 4 Z" fill="#ffffff" opacity="0.9"/>
+  </g>
+</svg>

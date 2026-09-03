@@ -13,6 +13,7 @@ import {
   Camera, Loader2, Save, Settings, Megaphone, QrCode, Menu, X,
   CheckCircle2, PauseCircle, Bell
 } from 'lucide-react';
+import { usePageMetadata } from '../utils/usePageMetadata';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -22,6 +23,8 @@ export default function Dashboard() {
   const [user, setUser] = useState<any>({});
   const [restaurant, setRestaurant] = useState<any>({});
   const [announcement, setAnnouncement] = useState<any>(null);
+
+  usePageMetadata(restaurant?.name ? `${restaurant.name} | Cafe Owner` : 'Cafe Owner | Dashboard', 'chef');
 
   const [editingProfile, setEditingProfile] = useState(false);
   const [restName, setRestName] = useState('');

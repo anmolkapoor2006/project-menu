@@ -10,6 +10,7 @@ import {
   ShoppingCart, Plus, Minus, X, Check, Utensils, ClipboardList,
   MessageCircle, Bell, QrCode, ExternalLink, Clock, CheckCircle2, ArrowLeft, ChevronRight
 } from 'lucide-react';
+import { usePageMetadata } from '../utils/usePageMetadata';
 
 interface MenuItem {
   id: string; name: string; description: string | null; price: string;
@@ -33,6 +34,8 @@ export default function PublicMenu() {
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  usePageMetadata(restaurant?.name ? `${restaurant.name} | Menu` : 'Digital Menu', 'spoon');
   const [logoError, setLogoError] = useState(false);
 
   const [view, setView] = useState<View>('menu');

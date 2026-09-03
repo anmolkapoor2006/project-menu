@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="chefGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2c3e2d"/>
+      <stop offset="100%" stop-color="#19251a"/>
+    </linearGradient>
+  </defs>
+  <circle cx="32" cy="32" r="30" fill="url(#chefGrad)"/>
+  <!-- Chef Hat Silhouette -->
+  <path d="M22 41h20a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2H22a2 2 0 0 1-2-2v-2a2 2 0 0 1 2-2z" fill="#f5f0eb"/>
+  <path d="M24 37h16v3H24z" fill="#e2d9cf"/>
+  <path d="M24.5 37c-3.6 0-6.5-2.9-6.5-6.5 0-3.2 2.3-5.8 5.4-6.4.7-4 4.2-7.1 8.6-7.1 4.3 0 7.8 3 8.6 7 3.1.6 5.4 3.2 5.4 6.5 0 3.6-2.9 6.5-6.5 6.5H24.5z" fill="#ffffff"/>
+  <circle cx="28" cy="44" r="1" fill="#2c3e2d"/>
+  <circle cx="32" cy="44" r="1" fill="#2c3e2d"/>
+  <circle cx="36" cy="44" r="1" fill="#2c3e2d"/>
+</svg>

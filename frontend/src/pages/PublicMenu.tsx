@@ -11,7 +11,6 @@ import {
   MessageCircle, Bell, QrCode, ExternalLink, Clock, CheckCircle2, ArrowLeft, ChevronRight
 } from 'lucide-react';
 
-// ─── Types ───────────────────────────────────────────────────────────────────
 interface MenuItem {
   id: string; name: string; description: string | null; price: string;
   imageUrl: string | null; isVeg: boolean; isAvailable: boolean;
@@ -25,53 +24,42 @@ interface Restaurant {
 }
 interface CartItem { menuItem: MenuItem; quantity: number; notes: string; }
 
-// ─── View states ──────────────────────────────────────────────────────────────
 type View = 'menu' | 'cart' | 'checkout' | 'payment' | 'confirmation';
 
-// ─── Component ────────────────────────────────────────────────────────────────
 export default function PublicMenu() {
   const { slug } = useParams<{ slug: string }>();
   const [searchParams] = useSearchParams();
 
-  // Data
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [logoError, setLogoError] = useState(false);
 
-  // View
   const [view, setView] = useState<View>('menu');
 
-  // Menu browsing
   const [searchQuery, setSearchQuery] = useState('');
   const [filterVeg, setFilterVeg] = useState<'all' | 'veg' | 'non-veg'>('all');
   const [activeCategory, setActiveCategory] = useState('');
 
-  // Cart
   const [cart, setCart] = useState<CartItem[]>([]);
 
-  // Checkout form
   const [customerName, setCustomerName] = useState('');
   const [nameError, setNameError] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'COUNTER' | 'UPI'>('COUNTER');
   const [placingOrder, setPlacingOrder] = useState(false);
   const [orderError, setOrderError] = useState('');
 
-  // Order confirmation
   const [lastPlacedOrder, setLastPlacedOrder] = useState<any>(null);
 
-  // UPI
   const [upiQrCodeUrl, setUpiQrCodeUrl] = useState('');
   const [upiDeepLink, setUpiDeepLink] = useState('');
 
-  // Staff call
   const [showCallStaffModal, setShowCallStaffModal] = useState(false);
   const [callStaffTable, setCallStaffTable] = useState('');
   const [callStaffType, setCallStaffType] = useState('Call Waiter');
   const [callingStaff, setCallingStaff] = useState(false);
   const [staffCalledMsg, setStaffCalledMsg] = useState('');
 
-  // Toast
   const [confirmedToast, setConfirmedToast] = useState('');
 
 
@@ -90,7 +78,6 @@ export default function PublicMenu() {
     return () => { document.body.style.cssText = ''; };
   }, [view, showCallStaffModal]);
 
-  // ── Load menu ─────────────────────────────────────────────────────────────
   useEffect(() => {
     async function load() {
       if (!slug) return;
@@ -100,7 +87,6 @@ export default function PublicMenu() {
         setRestaurant(rest);
         if (rest.categories?.length) setActiveCategory(rest.categories[0].id);
 
-        // Set page title to the restaurant name
         document.title = `${rest.name} — Menu`;
 
         const src = searchParams.get('src') || 'direct_link';
@@ -123,11 +109,10 @@ export default function PublicMenu() {
       }
     }
     load();
-    // Restore default title on unmount
+    // Page chhodte waqt title reset karo.
     return () => { document.title = 'MenuQR'; };
   }, [slug, searchParams]);
 
-  // ── Socket for order updates ───────────────────────────────────────────────
   useEffect(() => {
     if (!restaurant?.id || !lastPlacedOrder?.id) return;
     const socket = io(API_BASE_URL);
@@ -144,7 +129,6 @@ export default function PublicMenu() {
     return () => { socket.disconnect(); };
   }, [restaurant?.id, lastPlacedOrder?.id]);
 
-  // ── Generate UPI deep link (updates when cart total changes) ──────────────
   useEffect(() => {
     const upiId = restaurant?.upiId;
     if (!upiId) return;
@@ -154,12 +138,10 @@ export default function PublicMenu() {
     setUpiDeepLink(link);
   }, [restaurant?.upiId, restaurant?.upiPayeeName, restaurant?.name, cart]);
 
-  // ── Generate UPI QR image only when restaurant UPI ID changes ─────────────
-  // (the custom QR image from the cafe takes precedence — no regeneration needed)
+  // Cafe ka QR ho to generated QR ke badle wahi use hoga.
   useEffect(() => {
     async function gen() {
       const upiId = restaurant?.upiId;
-      // If cafe uploaded their own QR image, don't generate a synthetic one
       if (!upiId || restaurant?.upiQrImageUrl) return;
       const payee = restaurant?.upiPayeeName || restaurant?.name || 'Cafe';
       const link = `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(payee)}&cu=INR`;
@@ -171,7 +153,6 @@ export default function PublicMenu() {
     gen();
   }, [restaurant?.upiId, restaurant?.upiPayeeName, restaurant?.upiQrImageUrl, restaurant?.name]);
 
-  // ── Cart helpers ──────────────────────────────────────────────────────────
   const addToCart = (item: MenuItem) =>
     setCart((p) => {
       const ex = p.find((i) => i.menuItem.id === item.id);
@@ -188,14 +169,13 @@ export default function PublicMenu() {
   const cartCount = cart.reduce((s, i) => s + i.quantity, 0);
   const cartTotal = cart.reduce((s, i) => s + parseFloat(i.menuItem.price) * i.quantity, 0);
 
-  // ── Category scroll ───────────────────────────────────────────────────────
   const scrollToCategory = (id: string) => {
     setActiveCategory(id);
     const el = categoryRefs.current[id];
     if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 110, behavior: 'smooth' });
   };
 
-  // ── Place order ───────────────────────────────────────────────────────────
+  // Naam ke bina order submit nahi hoga.
   const handlePlaceOrder = async (method: 'COUNTER' | 'UPI') => {
     if (!customerName.trim()) { setNameError('Please enter your name so the cafe can call you when ready.'); return; }
     setNameError(''); setPlacingOrder(true); setOrderError('');
@@ -218,7 +198,6 @@ export default function PublicMenu() {
     }
   };
 
-  // ── Staff call ────────────────────────────────────────────────────────────
   const handleStaffCall = async (e: React.FormEvent) => {
     e.preventDefault(); setCallingStaff(true);
     try {
@@ -233,7 +212,6 @@ export default function PublicMenu() {
     finally { setCallingStaff(false); }
   };
 
-  // ── WhatsApp link ─────────────────────────────────────────────────────────
   const getWhatsAppLink = (order: any) => {
     if (!order) return '#';
     const who = order.customerName || order.tableNumber ? `Customer: ${order.customerName || `Table ${order.tableNumber}`}` : 'Guest';
@@ -244,14 +222,10 @@ export default function PublicMenu() {
     return phone ? `https://wa.me/${phone}?text=${encodeURIComponent(msg)}` : `https://wa.me/?text=${encodeURIComponent(msg)}`;
   };
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // RENDER: Loading skeleton (premium)
-  // ─────────────────────────────────────────────────────────────────────────
   if (loading) {
     return (
       <div className="min-h-screen bg-[var(--cream)] flex justify-center">
         <div className="w-full max-w-md bg-white min-h-screen flex flex-col">
-          {/* Header skeleton */}
           <div className="bg-[var(--sage)] px-5 pt-7 pb-5 animate-pulse">
             <div className="flex items-start gap-4">
               <div className="w-14 h-14 rounded-2xl bg-white/20" />
@@ -261,7 +235,6 @@ export default function PublicMenu() {
               </div>
             </div>
           </div>
-          {/* Search bar skeleton */}
           <div className="border-b border-[var(--cream-border)] px-4 py-3 space-y-2.5 animate-pulse">
             <div className="h-10 bg-[var(--cream-dark)] rounded-xl" />
             <div className="flex gap-2">
@@ -270,7 +243,6 @@ export default function PublicMenu() {
               <div className="h-7 w-20 bg-[var(--cream-dark)] rounded-xl" />
             </div>
           </div>
-          {/* Cards skeleton */}
           <div className="p-4 grid grid-cols-2 gap-3 animate-pulse">
             {Array.from({ length: 6 }).map((_, i) => (
               <div key={i} className="bg-[var(--cream)] rounded-2xl overflow-hidden">
@@ -299,9 +271,6 @@ export default function PublicMenu() {
     );
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // RENDER: Order Confirmation
-  // ─────────────────────────────────────────────────────────────────────────
   if (view === 'confirmation' && lastPlacedOrder) {
     const isPending = lastPlacedOrder.status === 'PAYMENT_PENDING_VERIFICATION';
     const isCancelled = lastPlacedOrder.status === 'CANCELLED';
@@ -314,7 +283,6 @@ export default function PublicMenu() {
       <div className="min-h-screen bg-[var(--cream)] flex justify-center">
         <div className="w-full max-w-md bg-white min-h-screen flex flex-col">
 
-          {/* Confirmed toast */}
           {confirmedToast && (
             <div className="m-4 bg-emerald-600 text-white text-sm p-4 rounded-2xl font-semibold flex items-center gap-3">
               <CheckCircle2 size={20} className="shrink-0" />
@@ -323,7 +291,6 @@ export default function PublicMenu() {
           )}
 
           <div className="flex-1 overflow-y-auto p-5 space-y-5">
-            {/* Status header */}
             <div className="text-center pt-4 space-y-3">
               {isExpired ? (
                 <div className="w-20 h-20 rounded-full bg-amber-100 flex items-center justify-center mx-auto">
@@ -356,7 +323,6 @@ export default function PublicMenu() {
               {lastPlacedOrder.customerName && <p className="text-sm text-[var(--muted)]">👤 {lastPlacedOrder.customerName}</p>}
             </div>
 
-            {/* UPI QR for pending */}
             {isPending && (
               <div className="bg-[var(--cream)] border border-[var(--cream-border)] rounded-3xl p-5 space-y-4 text-center">
                 <div className="flex items-center justify-between">
@@ -397,7 +363,6 @@ export default function PublicMenu() {
               </div>
             )}
 
-            {/* Order summary */}
             <div className="bg-[var(--cream)] border border-[var(--cream-border)] rounded-3xl p-5 space-y-3">
               <h3 className="text-xs font-bold text-[var(--muted)] uppercase tracking-wider flex items-center gap-1.5">
                 <ClipboardList size={13} className="text-[var(--sage)]" /> Your Order
@@ -449,9 +414,6 @@ export default function PublicMenu() {
     );
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // RENDER: Checkout Page (full-screen, separate from cart)
-  // ─────────────────────────────────────────────────────────────────────────
   if (view === 'checkout') {
     const hasUpi = Boolean(restaurant.upiQrImageUrl || restaurant.upiId);
 
@@ -459,7 +421,6 @@ export default function PublicMenu() {
       <div className="min-h-screen bg-[var(--cream)] flex justify-center">
         <div className="w-full max-w-md bg-white min-h-screen flex flex-col">
 
-          {/* Header */}
           <div className="sticky top-0 z-10 bg-white border-b border-[var(--cream-border)] px-4 py-4 flex items-center gap-3">
             <button
               onClick={() => { setView('cart'); setOrderError(''); }}
@@ -473,10 +434,8 @@ export default function PublicMenu() {
             </div>
           </div>
 
-          {/* Content */}
           <div className="flex-1 overflow-y-auto p-5 space-y-6">
 
-            {/* Order summary (compact) */}
             <div className="bg-[var(--cream)] border border-[var(--cream-border)] rounded-2xl overflow-hidden">
               <div className="px-4 py-3 border-b border-[var(--cream-border)] flex items-center gap-2">
                 <ShoppingCart size={14} className="text-[var(--sage)]" />
@@ -502,7 +461,6 @@ export default function PublicMenu() {
               </div>
             </div>
 
-            {/* Name input */}
             <div className="space-y-2">
               <label className="block text-xs font-bold text-[var(--text-mid)] uppercase tracking-wider">
                 Your Name <span className="text-red-500">*</span>
@@ -518,7 +476,6 @@ export default function PublicMenu() {
               {nameError && <p className="text-xs text-red-600 font-medium flex items-center gap-1.5"><AlertCircle size={12} />{nameError}</p>}
             </div>
 
-            {/* Payment method */}
             {hasUpi && (
               <div className="space-y-3">
                 <label className="block text-xs font-bold text-[var(--text-mid)] uppercase tracking-wider">Payment Method</label>
@@ -546,7 +503,6 @@ export default function PublicMenu() {
               </div>
             )}
 
-            {/* Payment method hint */}
             {hasUpi && paymentMethod === 'UPI' && (
               <div className="flex items-center gap-2.5 bg-[var(--sage-light)] border border-[var(--sage)]/15 px-4 py-3 rounded-2xl">
                 <QrCode size={14} className="text-[var(--sage)] shrink-0" />
@@ -561,7 +517,6 @@ export default function PublicMenu() {
             )}
           </div>
 
-          {/* Sticky bottom CTA */}
           <div className="border-t border-[var(--cream-border)] p-4 bg-white">
             <button
               onClick={() => {
@@ -586,9 +541,6 @@ export default function PublicMenu() {
     );
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // RENDER: Payment Page
-  // ─────────────────────────────────────────────────────────────────────────
   if (view === 'payment') {
     const isCounter = paymentMethod === 'COUNTER' || !Boolean(restaurant.upiQrImageUrl || restaurant.upiId);
     const upiId = restaurant.upiId;
@@ -600,7 +552,6 @@ export default function PublicMenu() {
       <div className="min-h-screen bg-[var(--cream)] flex justify-center">
         <div className="w-full max-w-md bg-white min-h-screen flex flex-col">
 
-          {/* Header */}
           <div className="sticky top-0 z-10 bg-white/95 backdrop-blur border-b border-[var(--cream-border)] px-4 py-4 flex items-center gap-3">
             <button
               onClick={() => { setView('checkout'); setOrderError(''); }}
@@ -614,20 +565,17 @@ export default function PublicMenu() {
             </div>
           </div>
 
-          {/* Amount banner */}
           <div className="bg-[var(--sage)] text-white px-6 pt-8 pb-10 text-center">
             <p className="text-xs text-white/50 font-semibold uppercase tracking-widest mb-2">Amount Due</p>
             <p className="font-display text-5xl font-semibold tracking-tight">₹{cartTotal.toFixed(0)}</p>
             <p className="text-sm text-white/50 mt-2">{customerName} · {cartCount} item{cartCount !== 1 ? 's' : ''}</p>
           </div>
 
-          {/* Content pulled up over banner */}
           <div className="flex-1 overflow-y-auto -mt-5">
             <div className="bg-[var(--cream)] rounded-t-[28px] p-5 space-y-4 min-h-full">
 
               {isCounter ? (
                 <>
-                  {/* Counter instructions */}
                   <div className="bg-white border border-[var(--cream-border)] rounded-3xl p-6 text-center space-y-4 shadow-sm">
                     <div className="w-16 h-16 rounded-2xl bg-[var(--sage-light)] flex items-center justify-center mx-auto text-3xl">🏪</div>
                     <div>
@@ -637,7 +585,6 @@ export default function PublicMenu() {
                       </p>
                     </div>
                   </div>
-                  {/* Order summary */}
                   <div className="bg-white border border-[var(--cream-border)] rounded-2xl overflow-hidden">
                     <div className="px-4 py-3 border-b border-[var(--cream-border)]">
                       <p className="text-xs font-bold text-[var(--muted)] uppercase tracking-wider">Your Order</p>
@@ -663,7 +610,6 @@ export default function PublicMenu() {
                 </>
               ) : (
                 <>
-                  {/* UPI QR Card */}
                   <div className="bg-white border border-[var(--cream-border)] rounded-3xl overflow-hidden shadow-sm scale-in">
                     <div className="px-5 py-4 border-b border-[var(--cream-border)] flex items-center justify-between">
                       <div className="flex items-center gap-2">
@@ -673,7 +619,6 @@ export default function PublicMenu() {
                       <span className="font-mono font-black text-[var(--sage)] text-lg">₹{cartTotal.toFixed(2)}</span>
                     </div>
                     <div className="p-6 flex flex-col items-center gap-5">
-                      {/* QR image */}
                       <div className="float-gentle w-56 h-56 border-2 border-[var(--cream-border)] rounded-2xl p-3 flex items-center justify-center bg-white shadow-sm">
                         {qrSrc ? (
                           <img src={qrSrc} alt="UPI QR Code" className="w-full h-full object-contain rounded-lg" />
@@ -684,7 +629,6 @@ export default function PublicMenu() {
                           </div>
                         )}
                       </div>
-                      {/* UPI ID + payee */}
                       <div className="text-center space-y-1.5">
                         <p className="text-xs text-[var(--muted)] font-medium">Pay to</p>
                         <p className="font-semibold text-[var(--text)]">{restaurant.upiPayeeName || restaurant.name}</p>
@@ -695,7 +639,6 @@ export default function PublicMenu() {
                         )}
                       </div>
                     </div>
-                    {/* Deep link CTA */}
                     {upiId && (
                       <div className="px-5 pb-5">
                         <a
@@ -709,7 +652,6 @@ export default function PublicMenu() {
                     )}
                   </div>
 
-                  {/* Instruction note */}
                   <div className="flex items-start gap-3 bg-amber-50 border border-amber-100 p-4 rounded-2xl">
                     <span className="text-base mt-0.5 shrink-0">💡</span>
                     <p className="text-xs text-amber-800 leading-relaxed">
@@ -728,7 +670,6 @@ export default function PublicMenu() {
             </div>
           </div>
 
-          {/* Sticky CTA */}
           <div className="border-t border-[var(--cream-border)] p-4 bg-white shrink-0">
             <button
               onClick={() => handlePlaceOrder(isCounter ? 'COUNTER' : 'UPI')}
@@ -745,14 +686,10 @@ export default function PublicMenu() {
     );
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // RENDER: Main Menu Page
-  // ─────────────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-[var(--cream)] flex justify-center pb-28">
       <div className="w-full max-w-md bg-white min-h-screen flex flex-col relative">
 
-        {/* Hero Header */}
         <header className="bg-[var(--sage)] px-5 pt-7 pb-5">
           <div className="flex items-start gap-4">
             <div className="w-14 h-14 rounded-2xl bg-white/20 border border-white/20 flex items-center justify-center overflow-hidden shrink-0">
@@ -796,7 +733,6 @@ export default function PublicMenu() {
           )}
         </header>
 
-        {/* Sticky search + category bar */}
         <div className="sticky top-0 z-30 bg-white border-b border-[var(--cream-border)] shadow-sm">
           <div className="px-4 pt-3 pb-2 space-y-2.5">
             <div className="relative">
@@ -813,9 +749,7 @@ export default function PublicMenu() {
               )}
             </div>
 
-            {/* Category + filter row */}
             <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
-              {/* Veg filter */}
               <div className="flex bg-[var(--cream)] border border-[var(--cream-border)] rounded-xl p-0.5 shrink-0">
                 {(['all', 'veg', 'non-veg'] as const).map((f) => (
                   <button key={f} onClick={() => setFilterVeg(f)}
@@ -842,7 +776,6 @@ export default function PublicMenu() {
           </div>
         </div>
 
-        {/* Menu grid */}
         <div className="flex-1 p-4 space-y-8">
           {(() => {
             let rendered = 0;
@@ -866,7 +799,6 @@ export default function PublicMenu() {
                       const qty = cart.find((i) => i.menuItem.id === item.id)?.quantity || 0;
                       return (
                         <div key={item.id} className={`bg-white border border-[var(--cream-border)] rounded-2xl overflow-hidden card-hover ${!item.isAvailable ? 'opacity-60' : ''}`}>
-                          {/* Image */}
                           <div className="relative h-32 bg-[var(--cream)] overflow-hidden">
                             {item.imageUrl ? (
                               <img src={item.imageUrl.startsWith('http') ? item.imageUrl : `${API_BASE_URL}${item.imageUrl}`}
@@ -890,7 +822,6 @@ export default function PublicMenu() {
                               </div>
                             )}
                           </div>
-                          {/* Info */}
                           <div className="p-3 space-y-2">
                             <h3 className="text-sm font-semibold text-[var(--text)] line-clamp-1 leading-tight">{item.name}</h3>
                             {item.description && <p className="text-[11px] text-[var(--muted)] line-clamp-2 leading-snug">{item.description}</p>}
@@ -933,7 +864,6 @@ export default function PublicMenu() {
           })()}
         </div>
 
-        {/* Floating cart button */}
         {cartCount > 0 && (
           <div className="fixed bottom-5 left-1/2 -translate-x-1/2 w-full max-w-[calc(28rem-2px)] px-4 z-40">
             <button
@@ -952,16 +882,13 @@ export default function PublicMenu() {
           </div>
         )}
 
-        {/* ── Cart Drawer (view === 'cart') ─────────────────────────── */}
         {view === 'cart' && (
           <div className="fixed inset-0 z-50 flex justify-center items-end bg-black/60 backdrop-blur-sm">
             <div className="w-full max-w-md bg-white rounded-t-3xl flex flex-col" style={{ maxHeight: '90dvh' }}>
-              {/* Drag handle */}
               <div className="pt-3 pb-1 flex justify-center shrink-0">
                 <div className="w-10 h-1 bg-[var(--cream-border)] rounded-full" />
               </div>
 
-              {/* Cart header */}
               <div className="px-5 py-3 border-b border-[var(--cream-border)] flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-2">
                   <ShoppingCart size={16} className="text-[var(--sage)]" />
@@ -973,7 +900,6 @@ export default function PublicMenu() {
                 </button>
               </div>
 
-              {/* Items — ONLY items, NO name/payment here */}
               <div className="flex-1 overflow-y-auto overscroll-contain p-4 space-y-3">
                 {cart.length === 0 ? (
                   <div className="text-center py-16 space-y-2">
@@ -1016,7 +942,6 @@ export default function PublicMenu() {
                 ))}
               </div>
 
-              {/* Proceed button — this is the ONLY action in the basket */}
               {cart.length > 0 && (
                 <div className="p-4 border-t border-[var(--cream-border)] bg-[var(--cream)] shrink-0">
                   <div className="flex items-center justify-between text-sm font-semibold text-[var(--muted)] mb-3">
@@ -1035,7 +960,6 @@ export default function PublicMenu() {
           </div>
         )}
 
-        {/* Call Staff Modal */}
         {showCallStaffModal && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-3xl w-full max-w-xs p-5 space-y-4 shadow-2xl">

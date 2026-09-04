@@ -245,6 +245,48 @@ export default function LiveOrders({ restaurantId, audioArmed, isActive = true }
     };
   }, [restaurantId, isActive, syncOrdersSilently, playNewOrderBeep]);
 
+  // ── Simulate live test order for immediate one-click testing ──────────────
+  const [simulating, setSimulating] = useState(false);
+
+  const handleSimulateOrder = async () => {
+    if (!restaurantId || simulating) return;
+    setSimulating(true);
+    try {
+      const menuRes = await api.get(`/api/restaurants/${restaurantId}/full-menu`);
+      const categories = menuRes.data.categories || [];
+      const allItems = categories.flatMap((c: any) => c.items || []);
+      const sampleItem = allItems[0];
+      if (!sampleItem) {
+        alert('Please add at least 1 menu item first in Menu Builder.');
+        return;
+      }
+
+      const randomNames = ['Aarav Sharma', 'Priya Patel', 'Rohan Verma', 'Sneha Kapoor', 'Karan Malhotra', 'Ananya Roy'];
+      const randomName = randomNames[Math.floor(Math.random() * randomNames.length)];
+      const randomTable = Math.floor(Math.random() * 10) + 1;
+
+      const meRes = await api.get('/api/auth/me');
+      const slug = meRes.data.restaurant?.slug;
+
+      if (slug) {
+        await api.post(`/api/public/menu/${slug}/order`, {
+          customerName: randomName,
+          tableNumber: String(randomTable),
+          paymentMethod: 'COUNTER',
+          items: [{ menuItemId: sampleItem.id, quantity: 1, notes: 'Direct live test' }],
+        });
+      }
+
+      // Immediately sync orders
+      await syncOrdersSilently(false);
+    } catch (err: any) {
+      console.error('Simulate order error:', err);
+      alert('Could not simulate test order: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setSimulating(false);
+    }
+  };
+
   // ── Status update ──────────────────────────────────────────────────────────
   const handleUpdateStatus = async (
     orderId: string,
@@ -294,7 +336,7 @@ export default function LiveOrders({ restaurantId, audioArmed, isActive = true }
           <h2 className="text-2xl font-display font-medium text-[var(--text)]">Live Kitchen</h2>
           <p className="text-sm text-[var(--muted)] mt-0.5">Real-time instant orders from QR menus</p>
         </div>
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2.5 flex-wrap">
           {/* Live indicator badge */}
           <div className="flex items-center gap-2 px-3.5 py-1.5 bg-emerald-50 border border-emerald-200 rounded-xl shadow-xs">
             <div className="relative w-2.5 h-2.5 flex items-center justify-center">
@@ -306,12 +348,22 @@ export default function LiveOrders({ restaurantId, audioArmed, isActive = true }
             </span>
           </div>
 
+          {/* Simulate Test Order Button */}
+          <button
+            onClick={handleSimulateOrder}
+            disabled={simulating}
+            title="Create a test order to see live real-time stream"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--sage)] hover:bg-[var(--sage-mid)] text-white rounded-xl text-xs font-bold transition-all shadow-xs active:scale-95 disabled:opacity-50 cursor-pointer"
+          >
+            <span>⚡ {simulating ? 'Placing...' : '+ Simulate Test Order'}</span>
+          </button>
+
           {/* Quick sync button */}
           <button
             onClick={() => syncOrdersSilently(true)}
             disabled={isSyncing}
             title="Force sync orders now"
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[var(--cream-border)] hover:bg-[var(--cream)] text-[var(--text-mid)] rounded-xl text-xs font-semibold transition-all active:scale-95 disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[var(--cream-border)] hover:bg-[var(--cream)] text-[var(--text-mid)] rounded-xl text-xs font-semibold transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
           >
             <RefreshCw size={13} className={isSyncing ? 'animate-spin text-[var(--sage)]' : ''} />
             <span className="hidden sm:inline">Sync</span>

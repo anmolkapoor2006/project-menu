@@ -608,7 +608,7 @@ export default function Dashboard() {
                 <MenuBuilder restaurantId={restaurant.id} />
               </div>
               <div className={activeTab === 'orders' ? 'block' : 'hidden'}>
-                <LiveOrders restaurantId={restaurant.id} audioArmed={audioArmed} />
+                <LiveOrders restaurantId={restaurant.id} audioArmed={audioArmed} isActive={activeTab === 'orders'} />
               </div>
               <div className={activeTab === 'analytics' ? 'block' : 'hidden'}>
                 <AnalyticsView restaurantId={restaurant.id} />

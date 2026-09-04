@@ -133,6 +133,10 @@ export async function getOrderById(req: Request, res: Response) {
   try {
     const { id } = req.params;
 
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+
     const order = await prisma.order.findUnique({
       where: { id },
       include: {
@@ -180,6 +184,10 @@ export async function getOrders(req: AuthenticatedRequest, res: Response) {
     if (!isAuth) {
       return res.status(403).json({ error: 'Not authorized to view these orders' });
     }
+
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
 
     const orders = await prisma.order.findMany({
       where: { restaurantId },

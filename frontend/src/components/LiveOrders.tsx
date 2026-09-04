@@ -27,6 +27,7 @@ interface Order {
 interface LiveOrdersProps {
   restaurantId: string;
   audioArmed: boolean; // passed from Dashboard so we share the same armed state
+  isActive?: boolean;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -75,7 +76,7 @@ function OrderSkeleton() {
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
-export default function LiveOrders({ restaurantId, audioArmed }: LiveOrdersProps) {
+export default function LiveOrders({ restaurantId, audioArmed, isActive = true }: LiveOrdersProps) {
   const cached = (() => {
     try {
       const data = sessionStorage.getItem(`orders_${restaurantId}`);
@@ -153,6 +154,13 @@ export default function LiveOrders({ restaurantId, audioArmed }: LiveOrdersProps
     }
   }, [restaurantId, playNewOrderBeep]);
 
+  // When tab becomes active, immediately trigger a fresh sync
+  useEffect(() => {
+    if (isActive && restaurantId) {
+      syncOrdersSilently(false);
+    }
+  }, [isActive, restaurantId, syncOrdersSilently]);
+
   // ── Initial load & real-time Socket listener ──────────────
   useEffect(() => {
     if (!restaurantId) return;
@@ -210,10 +218,11 @@ export default function LiveOrders({ restaurantId, audioArmed }: LiveOrdersProps
     socket.on('new_order', onNewOrder);
     socket.on('order_updated', onOrderUpdated);
 
-    // 3. Smart Background Auto-Polling (every 2.5s) to guarantee zero missed orders
+    // 3. Fast Auto-Polling (1.2s when active, 3s when idle) to guarantee instant zero-refresh updates
+    const pollIntervalMs = isActive ? 1200 : 3000;
     const pollTimer = setInterval(() => {
       syncOrdersSilently(false);
-    }, 2500);
+    }, pollIntervalMs);
 
     // 4. Tab Focus & Screen Wakeup listener
     const handleVisibilityOrFocus = () => {
@@ -234,7 +243,7 @@ export default function LiveOrders({ restaurantId, audioArmed }: LiveOrdersProps
       window.removeEventListener('focus', handleVisibilityOrFocus);
       document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
     };
-  }, [restaurantId, syncOrdersSilently, playNewOrderBeep]);
+  }, [restaurantId, isActive, syncOrdersSilently, playNewOrderBeep]);
 
   // ── Status update ──────────────────────────────────────────────────────────
   const handleUpdateStatus = async (

@@ -14,6 +14,14 @@ api.interceptors.request.use(
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    // Prevent stale 304 or CDN edge caching on API requests
+    if (config.method?.toLowerCase() === 'get') {
+      config.params = { ...(config.params || {}), _t: Date.now() };
+      if (config.headers) {
+        config.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+        config.headers['Pragma'] = 'no-cache';
+      }
+    }
     return config;
   },
   (error) => {

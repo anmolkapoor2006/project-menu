@@ -58,6 +58,7 @@ export default function Dashboard() {
   // Global Active Orders Count & Alert state
   const [activeOrderCount, setActiveOrderCount] = useState<number>(0);
   const [incomingOrderAlert, setIncomingOrderAlert] = useState<{ id: string; customerName: string; total: number; tableNumber?: string } | null>(null);
+  const [globalSimulating, setGlobalSimulating] = useState(false);
   const prevOrderIdsRef = useRef<Set<string>>(new Set());
 
   // Sound armed state — persisted so the owner only needs to enable once per browser
@@ -343,8 +344,6 @@ export default function Dashboard() {
           <button
             type="button"
             onClick={() => {
-              // These must ALL run synchronously inside the click handler
-              // so the browser grants AudioContext permission
               unlockAudioContext();
               if (stopRingtoneRef.current) stopRingtoneRef.current();
               const stopFn = startStaffCallRingtone(15000);
@@ -361,6 +360,50 @@ export default function Dashboard() {
           >
             <span className="flex items-center gap-2">🔔 Test 15s Ringtone</span>
             <span className="text-[10px] bg-amber-400/30 px-1.5 py-0.5 rounded text-amber-100 font-bold">▶ Play</span>
+          </button>
+
+          {/* Test Live Order button */}
+          <button
+            type="button"
+            disabled={globalSimulating}
+            onClick={async () => {
+              if (!restaurant?.id || globalSimulating) return;
+              setGlobalSimulating(true);
+              try {
+                unlockAudioContext();
+                const menuRes = await api.get(`/api/restaurants/${restaurant.id}/full-menu`);
+                const categories = menuRes.data.categories || [];
+                const allItems = categories.flatMap((c: any) => c.items || []);
+                const sampleItem = allItems[0];
+                if (!sampleItem) {
+                  alert('Please add at least 1 menu item first in Menu Builder.');
+                  return;
+                }
+
+                const randomNames = ['Aarav Sharma', 'Priya Patel', 'Rohan Verma', 'Sneha Kapoor', 'Karan Malhotra'];
+                const randomName = randomNames[Math.floor(Math.random() * randomNames.length)];
+                const randomTable = Math.floor(Math.random() * 10) + 1;
+
+                const slug = restaurant.slug;
+                if (slug) {
+                  await api.post(`/api/public/menu/${slug}/order`, {
+                    customerName: randomName,
+                    tableNumber: String(randomTable),
+                    paymentMethod: 'COUNTER',
+                    items: [{ menuItemId: sampleItem.id, quantity: 1, notes: 'Live stream test' }],
+                  });
+                }
+              } catch (err: any) {
+                console.error(err);
+                alert('Test order failed: ' + (err.response?.data?.error || err.message));
+              } finally {
+                setGlobalSimulating(false);
+              }
+            }}
+            className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl text-xs font-bold text-emerald-200 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/25 transition-all mt-2 cursor-pointer disabled:opacity-50"
+          >
+            <span className="flex items-center gap-2">⚡ {globalSimulating ? 'Placing Order...' : 'Test Live Order'}</span>
+            <span className="text-[10px] bg-emerald-400/30 px-1.5 py-0.5 rounded text-emerald-100 font-bold">+ Order</span>
           </button>
         </div>
       </nav>

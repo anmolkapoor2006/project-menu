@@ -55,6 +55,11 @@ export default function Dashboard() {
   const [isRinging, setIsRinging] = useState(false);
   const stopRingtoneRef = useRef<(() => void) | null>(null);
 
+  // Global Active Orders Count & Alert state
+  const [activeOrderCount, setActiveOrderCount] = useState<number>(0);
+  const [incomingOrderAlert, setIncomingOrderAlert] = useState<{ id: string; customerName: string; total: number; tableNumber?: string } | null>(null);
+  const prevOrderIdsRef = useRef<Set<string>>(new Set());
+
   // Sound armed state — persisted so the owner only needs to enable once per browser
   const [audioArmed, setAudioArmed] = useState<boolean>(() => {
     return localStorage.getItem('dashboard_audio_armed') === 'true';
@@ -131,7 +136,7 @@ export default function Dashboard() {
     };
   }, [audioArmed]);
 
-  // Global socket listener for Staff Call events
+  // Global socket listener & polling for Staff Call and New Orders
   useEffect(() => {
     if (!restaurant.id) return;
 
@@ -139,13 +144,11 @@ export default function Dashboard() {
     joinRestaurantRoom(restaurant.id);
 
     const handleStaffCall = (data: { tableNumber: string; requestType: string; timestamp: string }) => {
-      const armed = audioArmedRef.current;  // always fresh value
+      const armed = audioArmedRef.current; // always fresh value
 
-      // Always show the visual alert
       setStaffCallAlert(data);
       setIsRinging(armed);
 
-      // Only play sound if owner has armed audio
       if (armed) {
         if (stopRingtoneRef.current) stopRingtoneRef.current();
         const stopFn = startStaffCallRingtone(15000);
@@ -154,10 +157,72 @@ export default function Dashboard() {
       }
     };
 
+    const handleNewOrder = (order: any) => {
+      const total = (order.items || []).reduce(
+        (s: number, i: any) => s + parseFloat(i.priceAtOrder || 0) * (i.quantity || 1),
+        0
+      );
+      setIncomingOrderAlert({
+        id: order.id,
+        customerName: order.customerName || 'Guest',
+        tableNumber: order.tableNumber || null,
+        total,
+      });
+
+      if (audioArmedRef.current) {
+        unlockAudioContext();
+        try {
+          const Ctor = window.AudioContext || (window as any).webkitAudioContext;
+          if (Ctor) {
+            const ctx = new Ctor();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.frequency.value = 750;
+            gain.gain.setValueAtTime(0.3, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.28);
+          }
+        } catch (_) {}
+      }
+    };
+
     socket.on('staff_call', handleStaffCall);
+    socket.on('new_order', handleNewOrder);
+
+    // Global periodic order counter sync
+    const pollActiveOrders = async () => {
+      try {
+        const res = await api.get(`/api/restaurants/${restaurant.id}/orders`);
+        const list = res.data.orders || [];
+        const activeList = list.filter((o: any) =>
+          ['PAYMENT_PENDING_VERIFICATION', 'RECEIVED', 'PREPARING'].includes(o.status)
+        );
+        setActiveOrderCount(activeList.length);
+
+        // Check if new orders appeared that weren't in previous set
+        const currentIds = new Set<string>(list.map((o: any) => o.id));
+        if (prevOrderIdsRef.current.size > 0) {
+          const newOrder = list.find((o: any) => !prevOrderIdsRef.current.has(o.id));
+          if (newOrder) {
+            handleNewOrder(newOrder);
+          }
+        }
+        prevOrderIdsRef.current = currentIds;
+      } catch {
+        // silent
+      }
+    };
+
+    pollActiveOrders();
+    const interval = setInterval(pollActiveOrders, 2500);
 
     return () => {
       socket.off('staff_call', handleStaffCall);
+      socket.off('new_order', handleNewOrder);
+      clearInterval(interval);
       if (stopRingtoneRef.current) {
         stopRingtoneRef.current();
         stopRingtoneRef.current = null;
@@ -233,7 +298,12 @@ export default function Dashboard() {
             }`}
           >
             <Icon size={17} />
-            {label}
+            <span>{label}</span>
+            {id === 'orders' && activeOrderCount > 0 && (
+              <span className="ml-auto bg-emerald-400 text-[var(--sage)] text-[11px] font-extrabold px-2 py-0.5 rounded-full animate-pulse shadow-sm">
+                {activeOrderCount}
+              </span>
+            )}
           </button>
         ))}
 
@@ -369,6 +439,42 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* Global Incoming Order Notification Alert */}
+      {incomingOrderAlert && (
+        <div className="fixed top-4 inset-x-0 z-[9998] flex justify-center px-4 pointer-events-none">
+          <div className="notification-slide w-full max-w-md pointer-events-auto bg-emerald-700 text-white rounded-2xl p-4 shadow-2xl border border-emerald-500/30 flex items-center justify-between gap-3 animate-bounce">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center font-bold text-lg shrink-0">
+                🔔
+              </div>
+              <div className="min-w-0">
+                <p className="font-bold text-sm leading-tight">New Order Received!</p>
+                <p className="text-xs text-white/80 mt-0.5 truncate">
+                  {incomingOrderAlert.customerName} {incomingOrderAlert.tableNumber ? `· Table ${incomingOrderAlert.tableNumber}` : ''} · ₹{incomingOrderAlert.total.toFixed(0)}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => {
+                  setActiveTab('orders');
+                  setIncomingOrderAlert(null);
+                }}
+                className="bg-white text-emerald-800 text-xs font-bold px-3 py-1.5 rounded-xl hover:bg-emerald-50 transition-colors shadow-xs cursor-pointer"
+              >
+                View Kitchen →
+              </button>
+              <button
+                onClick={() => setIncomingOrderAlert(null)}
+                className="text-white/70 hover:text-white p-1 cursor-pointer"
+              >
+                <X size={15} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex w-64 bg-[var(--sage)] flex-col shrink-0 sticky top-0 h-screen">
         <SidebarContent />
@@ -457,6 +563,35 @@ export default function Dashboard() {
 
           {/* Overview Tab */}
           <div className={activeTab === 'overview' ? 'space-y-6' : 'hidden'}>
+            {/* Quick Live Kitchen Status Banner */}
+            <div className="bg-gradient-to-r from-[var(--sage)] to-[var(--sage-mid)] rounded-3xl p-5 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+              <div className="flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-2xl bg-white/15 flex items-center justify-center text-2xl shrink-0">
+                  👨‍🍳
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-base">Live Kitchen Stream</h3>
+                    <span className="inline-flex items-center gap-1.5 bg-emerald-400/30 text-emerald-100 text-[10px] font-bold px-2.5 py-0.5 rounded-full border border-emerald-400/30">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-ping" />
+                      Live Sync Active
+                    </span>
+                  </div>
+                  <p className="text-white/80 text-xs mt-0.5">
+                    {activeOrderCount === 0
+                      ? 'No pending orders right now. Orders placed on QR menus pop up automatically.'
+                      : `⚡ You have ${activeOrderCount} active order(s) right now in the kitchen.`}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setActiveTab('orders')}
+                className="px-4 py-2.5 bg-white text-[var(--sage)] rounded-xl font-bold text-xs hover:bg-[var(--cream)] transition-all shadow-sm flex items-center justify-center gap-1.5 shrink-0 active:scale-95 cursor-pointer"
+              >
+                <ClipboardList size={14} /> Open Live Kitchen {activeOrderCount > 0 ? `(${activeOrderCount})` : ''} →
+              </button>
+            </div>
+
             {/* Cafe Profile Card */}
               <div className="bg-white rounded-3xl border border-[var(--cream-border)] shadow-sm overflow-hidden">
                 <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--cream-dark)]">

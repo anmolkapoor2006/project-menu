@@ -228,7 +228,7 @@ export async function updateOrderStatus(req: AuthenticatedRequest, res: Response
       data: { status: body.status },
       include: {
         restaurant: {
-          select: { name: true }
+          select: { id: true, name: true, upiId: true, upiPayeeName: true, upiQrImageUrl: true }
         },
         items: {
           include: {
@@ -242,11 +242,13 @@ export async function updateOrderStatus(req: AuthenticatedRequest, res: Response
 
     try {
       const io = getIO();
-      // Emit update to restaurant room (kitchen dashboard)
+      // Emit update to restaurant room (kitchen dashboard & live tracking)
       io.to(`restaurant_${order.restaurantId}`).emit('order_updated', updated);
+      console.log(`[Socket.io] Emitted order_updated to restaurant_${order.restaurantId}:`, updated.id, updated.status);
     } catch (wsError) {
-      console.error(wsError);
+      console.warn('[Socket.io] Could not emit order_updated:', wsError);
     }
+
 
     return res.json({ message: 'Order status updated successfully', order: updated });
   } catch (error) {

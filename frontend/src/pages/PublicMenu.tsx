@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import QRCode from 'qrcode';
-import io from 'socket.io-client';
+import { getSocket, joinRestaurantRoom } from '../utils/socket';
 import api from '../api/api';
 import { API_BASE_URL } from '../config';
 import { playConfirmBeep } from '../utils/audio';
@@ -145,9 +145,11 @@ export default function PublicMenu() {
 
   useEffect(() => {
     if (!restaurant?.id || !lastPlacedOrder?.id) return;
-    const socket = io(API_BASE_URL);
-    socket.on('connect', () => socket.emit('join_restaurant', restaurant.id));
-    socket.on('order_updated', (updated: any) => {
+
+    const socket = getSocket();
+    joinRestaurantRoom(restaurant.id);
+
+    const handleOrderUpdated = (updated: any) => {
       if (updated.id !== lastPlacedOrder.id) return;
       const prev = lastPlacedOrder.status;
       setLastPlacedOrder(updated);
@@ -155,9 +157,29 @@ export default function PublicMenu() {
         setConfirmedToast('✅ Payment confirmed — your order is received!');
         setTimeout(() => setConfirmedToast(''), 8000);
       }
-    });
-    return () => { socket.disconnect(); };
-  }, [restaurant?.id, lastPlacedOrder?.id]);
+    };
+
+    socket.on('order_updated', handleOrderUpdated);
+
+    // Fast polling fallback while viewing active confirmation screen
+    const isCompleted = lastPlacedOrder.status === 'SERVED' || lastPlacedOrder.status === 'CANCELLED';
+    let pollTimer: ReturnType<typeof setInterval> | null = null;
+    if (!isCompleted) {
+      pollTimer = setInterval(async () => {
+        try {
+          const res = await api.get(`/api/public/orders/${lastPlacedOrder.id}`);
+          if (res.data.order && res.data.order.status !== lastPlacedOrder.status) {
+            handleOrderUpdated(res.data.order);
+          }
+        } catch { /* silent */ }
+      }, 2500);
+    }
+
+    return () => {
+      socket.off('order_updated', handleOrderUpdated);
+      if (pollTimer) clearInterval(pollTimer);
+    };
+  }, [restaurant?.id, lastPlacedOrder?.id, lastPlacedOrder?.status]);
 
   useEffect(() => {
     const upiId = restaurant?.upiId;

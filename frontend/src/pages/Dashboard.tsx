@@ -6,7 +6,7 @@ import MenuBuilder from './MenuBuilder';
 import LiveOrders from '../components/LiveOrders';
 import AnalyticsView from '../components/AnalyticsView';
 import { API_BASE_URL } from '../config';
-import io from 'socket.io-client';
+import { getSocket, joinRestaurantRoom } from '../utils/socket';
 import { startStaffCallRingtone, unlockAudioContext } from '../utils/audio';
 import {
   Store, UtensilsCrossed, ClipboardList, BarChart3, LogOut,
@@ -135,12 +135,10 @@ export default function Dashboard() {
   useEffect(() => {
     if (!restaurant.id) return;
 
-    const socket = io(API_BASE_URL);
-    socket.on('connect', () => {
-      socket.emit('join_restaurant', restaurant.id);
-    });
+    const socket = getSocket();
+    joinRestaurantRoom(restaurant.id);
 
-    socket.on('staff_call', (data: { tableNumber: string; requestType: string; timestamp: string }) => {
+    const handleStaffCall = (data: { tableNumber: string; requestType: string; timestamp: string }) => {
       const armed = audioArmedRef.current;  // always fresh value
 
       // Always show the visual alert
@@ -154,14 +152,16 @@ export default function Dashboard() {
         stopRingtoneRef.current = stopFn;
         setTimeout(() => setIsRinging(false), 15000);
       }
-    });
+    };
+
+    socket.on('staff_call', handleStaffCall);
 
     return () => {
+      socket.off('staff_call', handleStaffCall);
       if (stopRingtoneRef.current) {
         stopRingtoneRef.current();
         stopRingtoneRef.current = null;
       }
-      socket.disconnect();
     };
   }, [restaurant.id]);
 

@@ -17,7 +17,7 @@ import { usePageMetadata } from '../utils/usePageMetadata';
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'overview' | 'menu' | 'orders' | 'analytics'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'menu' | 'orders' | 'analytics'>('orders');
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const [user, setUser] = useState<any>(() => {

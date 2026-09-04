@@ -1,10 +1,18 @@
 import { Request, Response } from 'express';
 import prisma from '../prisma';
 import { getIO } from '../io';
+import { getCachedMenu, setCachedMenu } from '../utils/menuCache';
 
 export async function getPublicMenu(req: Request, res: Response) {
   try {
     const { slug } = req.params;
+
+    // 1. Instant in-memory cache hit
+    const cached = getCachedMenu(slug);
+    if (cached) {
+      res.setHeader('Cache-Control', 'public, max-age=10, s-maxage=60, stale-while-revalidate=300');
+      return res.json({ restaurant: cached });
+    }
 
     const restaurant = await prisma.restaurant.findUnique({
       where: { slug, isActive: true },
@@ -23,6 +31,8 @@ export async function getPublicMenu(req: Request, res: Response) {
     if (!restaurant) {
       return res.status(404).json({ error: 'Restaurant not found or inactive' });
     }
+
+    setCachedMenu(slug, restaurant, 60);
 
     // Cache public menu at browser (10s) and CDN edge (60s), stale-while-revalidate (300s)
     // This gives instantaneous cache hits for customers

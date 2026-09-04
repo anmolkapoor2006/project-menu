@@ -3,6 +3,7 @@ import prisma from '../prisma';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
 import { z } from 'zod';
 import { uploadToCloudinary } from '../utils/cloudinary';
+import { clearMenuCache } from '../utils/menuCache';
 
 const categorySchema = z.object({
   name: z.string().min(1, 'Category name is required'),
@@ -53,6 +54,8 @@ export async function createCategory(req: AuthenticatedRequest, res: Response) {
       },
     });
 
+    clearMenuCache();
+
     return res.status(201).json({ message: 'Category created successfully', category });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -87,6 +90,8 @@ export async function updateCategory(req: AuthenticatedRequest, res: Response) {
       },
     });
 
+    clearMenuCache();
+
     return res.json({ message: 'Category updated successfully', category });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -112,6 +117,8 @@ export async function deleteCategory(req: AuthenticatedRequest, res: Response) {
     }
 
     await prisma.menuCategory.delete({ where: { id } });
+
+    clearMenuCache();
 
     return res.json({ message: 'Category deleted successfully' });
   } catch (error) {
@@ -153,6 +160,8 @@ export async function createMenuItem(req: AuthenticatedRequest, res: Response) {
         imageUrl,
       },
     });
+
+    clearMenuCache();
 
     return res.status(201).json({ message: 'Menu item created successfully', item });
   } catch (error) {
@@ -198,6 +207,8 @@ export async function updateMenuItem(req: AuthenticatedRequest, res: Response) {
       data: updateData,
     });
 
+    clearMenuCache();
+
     return res.json({ message: 'Menu item updated successfully', item });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -227,6 +238,8 @@ export async function deleteMenuItem(req: AuthenticatedRequest, res: Response) {
     }
 
     await prisma.menuItem.delete({ where: { id } });
+
+    clearMenuCache();
 
     return res.json({ message: 'Menu item deleted successfully' });
   } catch (error) {

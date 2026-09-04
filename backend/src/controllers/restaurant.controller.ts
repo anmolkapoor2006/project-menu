@@ -4,6 +4,7 @@ import { AuthenticatedRequest } from '../middleware/auth.middleware';
 import QRCode from 'qrcode';
 import { z } from 'zod';
 import { uploadToCloudinary } from '../utils/cloudinary';
+import { clearMenuCache } from '../utils/menuCache';
 
 const updateRestaurantSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters').optional(),
@@ -57,6 +58,8 @@ export async function updateRestaurant(req: AuthenticatedRequest, res: Response)
       where: { id },
       data: updateData,
     });
+
+    clearMenuCache();
 
     return res.json({
       message: 'Restaurant profile updated successfully',

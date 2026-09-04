@@ -206,6 +206,8 @@ export default function PublicMenu() {
   };
 
   // Naam ke bina order submit nahi hoga.
+
+
   const handlePlaceOrder = async (method: 'COUNTER' | 'UPI') => {
     if (!customerName.trim()) { setNameError('Please enter your name so the cafe can call you when ready.'); return; }
     setNameError(''); setPlacingOrder(true); setOrderError('');
@@ -228,6 +230,9 @@ export default function PublicMenu() {
     }
   };
 
+
+
+  
   const handleStaffCall = async (e: React.FormEvent) => {
     e.preventDefault(); setCallingStaff(true);
     try {

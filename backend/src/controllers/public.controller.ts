@@ -24,9 +24,9 @@ export async function getPublicMenu(req: Request, res: Response) {
       return res.status(404).json({ error: 'Restaurant not found or inactive' });
     }
 
-    // Cache public menu at CDN edge for 30 seconds, stale-while-revalidate 60s
-    // This eliminates cold-start latency for repeat visitors
-    res.setHeader('Cache-Control', 's-maxage=30, stale-while-revalidate=60');
+    // Cache public menu at browser (10s) and CDN edge (60s), stale-while-revalidate (300s)
+    // This gives instantaneous cache hits for customers
+    res.setHeader('Cache-Control', 'public, max-age=10, s-maxage=60, stale-while-revalidate=300');
 
     return res.json({ restaurant });
   } catch (error) {
@@ -43,6 +43,7 @@ export async function logViewEvent(req: Request, res: Response) {
 
     const restaurant = await prisma.restaurant.findUnique({
       where: { slug },
+      select: { id: true },
     });
 
     if (!restaurant) {

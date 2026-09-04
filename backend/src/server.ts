@@ -1,4 +1,5 @@
 import express from 'express';
+import compression from 'compression';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
@@ -34,13 +35,16 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 
+// Gzip / Deflate compression for all responses
+app.use(compression());
+
 // Configure CORS
 app.use(cors({
   origin: true,
   credentials: true,
 }));
 
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 // Serve static uploaded files
 app.use('/uploads', express.static(path.join(process.cwd(), 'public', 'uploads')));

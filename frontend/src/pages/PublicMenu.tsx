@@ -27,12 +27,35 @@ interface CartItem { menuItem: MenuItem; quantity: number; notes: string; }
 
 type View = 'menu' | 'cart' | 'checkout' | 'payment' | 'confirmation';
 
+function getCachedRestaurant(slug?: string): Restaurant | null {
+  if (!slug) return null;
+  try {
+    const cached = sessionStorage.getItem(`menu_${slug}`);
+    return cached ? JSON.parse(cached) : null;
+  } catch {
+    return null;
+  }
+}
+
+function getOptimizedImageUrl(rawUrl: string | null | undefined, width = 400): string {
+  if (!rawUrl) return '';
+  let url = rawUrl.startsWith('http') ? rawUrl : `${API_BASE_URL}${rawUrl}`;
+  if (url.includes('images.unsplash.com')) {
+    url = url.replace(/w=\d+/, `w=${width}`);
+    if (!url.includes('auto=format')) url += `&auto=format&fit=crop&q=75`;
+  } else if (url.includes('res.cloudinary.com') && url.includes('/upload/')) {
+    url = url.replace('/upload/', `/upload/f_auto,q_auto,w_${width}/`);
+  }
+  return url;
+}
+
 export default function PublicMenu() {
   const { slug } = useParams<{ slug: string }>();
   const [searchParams] = useSearchParams();
 
-  const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
-  const [loading, setLoading] = useState(true);
+  const cachedInit = getCachedRestaurant(slug);
+  const [restaurant, setRestaurant] = useState<Restaurant | null>(cachedInit);
+  const [loading, setLoading] = useState(!cachedInit);
   const [error, setError] = useState('');
 
   usePageMetadata(restaurant?.name ? `${restaurant.name} | Menu` : 'Digital Menu', 'spoon');
@@ -42,7 +65,7 @@ export default function PublicMenu() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterVeg, setFilterVeg] = useState<'all' | 'veg' | 'non-veg'>('all');
-  const [activeCategory, setActiveCategory] = useState('');
+  const [activeCategory, setActiveCategory] = useState(cachedInit?.categories?.[0]?.id || '');
 
   const [cart, setCart] = useState<CartItem[]>([]);
 
@@ -88,12 +111,14 @@ export default function PublicMenu() {
         const res = await api.get(`/api/public/menu/${slug}`);
         const rest = res.data.restaurant;
         setRestaurant(rest);
-        if (rest.categories?.length) setActiveCategory(rest.categories[0].id);
+        sessionStorage.setItem(`menu_${slug}`, JSON.stringify(rest));
+        if (rest.categories?.length && !activeCategory) setActiveCategory(rest.categories[0].id);
 
         document.title = `${rest.name} — Menu`;
 
+        // Asynchronous non-blocking telemetry
         const src = searchParams.get('src') || 'direct_link';
-        await api.post(`/api/public/menu/${slug}/view-event?src=${src}`);
+        api.post(`/api/public/menu/${slug}/view-event?src=${src}`).catch(() => {});
 
         const isFresh = searchParams.get('reset') === 'true' || searchParams.get('fresh') === 'true';
         if (isFresh) localStorage.removeItem(`last_order_${slug}`);
@@ -106,7 +131,9 @@ export default function PublicMenu() {
           } catch { /* no existing order */ }
         }
       } catch (err: any) {
-        setError(err.response?.data?.error || 'Menu could not be loaded.');
+        if (!restaurant) {
+          setError(err.response?.data?.error || 'Menu could not be loaded.');
+        }
       } finally {
         setLoading(false);
       }
@@ -337,12 +364,18 @@ export default function PublicMenu() {
                 <div className="bg-white p-4 rounded-2xl border border-[var(--cream-border)] inline-block mx-auto">
                   {(restaurant.upiQrImageUrl || lastPlacedOrder.restaurant?.upiQrImageUrl) ? (
                     <img
-                      src={(restaurant.upiQrImageUrl || lastPlacedOrder.restaurant?.upiQrImageUrl).startsWith('http')
-                        ? (restaurant.upiQrImageUrl || lastPlacedOrder.restaurant?.upiQrImageUrl)
-                        : `${API_BASE_URL}${restaurant.upiQrImageUrl || lastPlacedOrder.restaurant?.upiQrImageUrl}`}
-                      alt="UPI QR" className="w-52 h-52 object-contain" />
+                      src={getOptimizedImageUrl(restaurant.upiQrImageUrl || lastPlacedOrder.restaurant?.upiQrImageUrl, 400)}
+                      alt="UPI QR"
+                      loading="lazy"
+                      decoding="async"
+                      className="w-52 h-52 object-contain" />
                   ) : upiQrCodeUrl ? (
-                    <img src={upiQrCodeUrl} alt="UPI QR" className="w-52 h-52" />
+                    <img
+                      src={upiQrCodeUrl}
+                      alt="UPI QR"
+                      loading="lazy"
+                      decoding="async"
+                      className="w-52 h-52" />
                   ) : (
                     <Loader2 className="animate-spin text-[var(--sage)]" size={32} />
                   )}
@@ -698,8 +731,12 @@ export default function PublicMenu() {
             <div className="w-14 h-14 rounded-2xl bg-white/20 border border-white/20 flex items-center justify-center overflow-hidden shrink-0">
               {restaurant.logoUrl && !logoError ? (
                 <img
-                  src={restaurant.logoUrl.startsWith('http') ? restaurant.logoUrl : `${API_BASE_URL}${restaurant.logoUrl}`}
-                  alt="Logo" onError={() => setLogoError(true)} className="w-full h-full object-cover"
+                  src={getOptimizedImageUrl(restaurant.logoUrl, 120)}
+                  alt="Logo"
+                  loading="lazy"
+                  decoding="async"
+                  onError={() => setLogoError(true)}
+                  className="w-full h-full object-cover"
                 />
               ) : <Store size={26} className="text-white/70" />}
             </div>
@@ -804,8 +841,13 @@ export default function PublicMenu() {
                         <div key={item.id} className={`bg-white border border-[var(--cream-border)] rounded-2xl overflow-hidden card-hover ${!item.isAvailable ? 'opacity-60' : ''}`}>
                           <div className="relative h-32 bg-[var(--cream)] overflow-hidden">
                             {item.imageUrl ? (
-                              <img src={item.imageUrl.startsWith('http') ? item.imageUrl : `${API_BASE_URL}${item.imageUrl}`}
-                                alt={item.name} className="w-full h-full object-cover" />
+                              <img
+                                src={getOptimizedImageUrl(item.imageUrl, 350)}
+                                alt={item.name}
+                                loading="lazy"
+                                decoding="async"
+                                className="w-full h-full object-cover"
+                              />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center">
                                 <Utensils size={28} className="text-[var(--cream-border)]" />

@@ -7,9 +7,16 @@ interface QRSectionProps {
 }
 
 export default function QRSection({ restaurantId }: QRSectionProps) {
-  const [qrCodeUrl, setQrCodeUrl] = useState('');
-  const [publicUrl, setPublicUrl] = useState('');
-  const [loading, setLoading] = useState(true);
+  const cached = (() => {
+    try {
+      const data = sessionStorage.getItem(`qrcode_${restaurantId}`);
+      return data ? JSON.parse(data) : null;
+    } catch { return null; }
+  })();
+
+  const [qrCodeUrl, setQrCodeUrl] = useState(cached?.qrCodeUrl || '');
+  const [publicUrl, setPublicUrl] = useState(cached?.publicUrl || '');
+  const [loading, setLoading] = useState(!cached);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -18,6 +25,10 @@ export default function QRSection({ restaurantId }: QRSectionProps) {
         const response = await api.get(`/api/restaurants/${restaurantId}/qrcode`);
         setQrCodeUrl(response.data.qrCodeUrl);
         setPublicUrl(response.data.publicUrl);
+        sessionStorage.setItem(`qrcode_${restaurantId}`, JSON.stringify({
+          qrCodeUrl: response.data.qrCodeUrl,
+          publicUrl: response.data.publicUrl,
+        }));
       } catch (err) {
         console.error('Failed to load QR code', err);
       } finally {

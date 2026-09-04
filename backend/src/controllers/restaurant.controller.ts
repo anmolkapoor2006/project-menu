@@ -6,14 +6,21 @@ import { z } from 'zod';
 import { uploadToCloudinary } from '../utils/cloudinary';
 import { clearMenuCache } from '../utils/menuCache';
 
+const booleanPreprocess = (val: unknown) => {
+  if (val === undefined || val === null || val === '') return undefined;
+  if (val === 'true' || val === true) return true;
+  if (val === 'false' || val === false) return false;
+  return Boolean(val);
+};
+
 const updateRestaurantSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters').optional(),
-  address: z.string().optional(),
-  contactNumber: z.string().optional(),
+  address: z.string().optional().nullable(),
+  contactNumber: z.string().optional().nullable(),
   upiId: z.string().optional().nullable(),
   upiPayeeName: z.string().optional().nullable(),
-  isActive: z.boolean().optional(),
-  isAcceptingOrders: z.boolean().optional(),
+  isActive: z.preprocess(booleanPreprocess, z.boolean().optional()),
+  isAcceptingOrders: z.preprocess(booleanPreprocess, z.boolean().optional()),
 });
 
 export async function updateRestaurant(req: AuthenticatedRequest, res: Response) {
@@ -46,13 +53,16 @@ export async function updateRestaurant(req: AuthenticatedRequest, res: Response)
     const logoUrl = logoFile ? await uploadToCloudinary(logoFile.path) : undefined;
     const upiQrImageUrl = qrFile ? await uploadToCloudinary(qrFile.path) : undefined;
 
-    const updateData: any = { ...body };
-    if (logoUrl) {
-      updateData.logoUrl = logoUrl;
-    }
-    if (upiQrImageUrl) {
-      updateData.upiQrImageUrl = upiQrImageUrl;
-    }
+    const updateData: any = {};
+    if (body.name !== undefined) updateData.name = body.name;
+    if (body.address !== undefined) updateData.address = body.address;
+    if (body.contactNumber !== undefined) updateData.contactNumber = body.contactNumber;
+    if (body.upiId !== undefined) updateData.upiId = body.upiId ? body.upiId.trim() : null;
+    if (body.upiPayeeName !== undefined) updateData.upiPayeeName = body.upiPayeeName ? body.upiPayeeName.trim() : null;
+    if (body.isActive !== undefined) updateData.isActive = body.isActive;
+    if (body.isAcceptingOrders !== undefined) updateData.isAcceptingOrders = body.isAcceptingOrders;
+    if (logoUrl) updateData.logoUrl = logoUrl;
+    if (upiQrImageUrl) updateData.upiQrImageUrl = upiQrImageUrl;
 
     const updated = await prisma.restaurant.update({
       where: { id },

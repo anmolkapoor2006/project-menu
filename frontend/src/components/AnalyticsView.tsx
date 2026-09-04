@@ -20,10 +20,17 @@ interface ProductEarning { name: string; qtySold: number; totalRevenue: number; 
 interface AnalyticsViewProps { restaurantId: string; }
 
 export default function AnalyticsView({ restaurantId }: AnalyticsViewProps) {
-  const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
-  const [viewsTrend, setViewsTrend] = useState<TrendEvent[]>([]);
-  const [productEarnings, setProductEarnings] = useState<ProductEarning[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cached = (() => {
+    try {
+      const data = sessionStorage.getItem(`analytics_${restaurantId}`);
+      return data ? JSON.parse(data) : null;
+    } catch { return null; }
+  })();
+
+  const [summary, setSummary] = useState<AnalyticsSummary | null>(cached?.summary || null);
+  const [viewsTrend, setViewsTrend] = useState<TrendEvent[]>(cached?.viewsTrend || []);
+  const [productEarnings, setProductEarnings] = useState<ProductEarning[]>(cached?.productEarnings || []);
+  const [loading, setLoading] = useState(!cached);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -33,8 +40,13 @@ export default function AnalyticsView({ restaurantId }: AnalyticsViewProps) {
         setSummary(response.data.summary);
         setViewsTrend(response.data.viewsTrend);
         if (response.data.productEarnings) setProductEarnings(response.data.productEarnings);
+        sessionStorage.setItem(`analytics_${restaurantId}`, JSON.stringify({
+          summary: response.data.summary,
+          viewsTrend: response.data.viewsTrend,
+          productEarnings: response.data.productEarnings || [],
+        }));
       } catch (err) {
-        setError('Failed to fetch analytics.');
+        if (!summary) setError('Failed to fetch analytics.');
       } finally {
         setLoading(false);
       }

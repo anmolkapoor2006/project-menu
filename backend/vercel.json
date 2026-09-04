@@ -1,5 +1,5 @@
 {
-  "regions": ["iad1", "cle1"],
+  "regions": ["iad1"],
   "rewrites": [
     {
       "source": "/(.*)",

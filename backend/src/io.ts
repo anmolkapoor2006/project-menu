@@ -12,7 +12,10 @@ export function initSocket(server: HttpServer, frontendUrl: string): SocketServe
 
   io = new SocketServer(server, {
     cors: {
-      origin: allowedOrigins,
+      origin: (origin, callback) => {
+        // Allow all origins (reflection)
+        callback(null, true);
+      },
       methods: ['GET', 'POST', 'PUT', 'DELETE'],
       credentials: true,
     },

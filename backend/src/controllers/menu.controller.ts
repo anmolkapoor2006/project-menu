@@ -5,20 +5,33 @@ import { z } from 'zod';
 import { uploadToCloudinary } from '../utils/cloudinary';
 import { clearMenuCache } from '../utils/menuCache';
 
+const booleanPreprocess = (val: unknown) => {
+  if (val === undefined || val === null || val === '') return undefined;
+  if (val === 'true' || val === true) return true;
+  if (val === 'false' || val === false) return false;
+  return Boolean(val);
+};
+
+const numberPreprocess = (val: unknown) => {
+  if (val === undefined || val === null || val === '') return undefined;
+  const num = Number(val);
+  return isNaN(num) ? undefined : num;
+};
+
 const categorySchema = z.object({
   name: z.string().min(1, 'Category name is required'),
-  displayOrder: z.preprocess((val) => Number(val), z.number().int().default(0)),
+  displayOrder: z.preprocess(numberPreprocess, z.number().int().default(0)),
 });
 
 const itemSchema = z.object({
   name: z.string().min(1, 'Item name is required'),
-  description: z.string().optional(),
-  price: z.preprocess((val) => Number(val), z.number().positive('Price must be greater than 0')),
-  isVeg: z.preprocess((val) => val === 'true' || val === true, z.boolean().default(true)),
-  isAvailable: z.preprocess((val) => val === 'true' || val === true, z.boolean().default(true)),
+  description: z.string().optional().nullable(),
+  price: z.preprocess(numberPreprocess, z.number().positive('Price must be greater than 0')),
+  isVeg: z.preprocess(booleanPreprocess, z.boolean().default(true)),
+  isAvailable: z.preprocess(booleanPreprocess, z.boolean().default(true)),
   badge: z.string().optional().nullable(),
   prepTime: z.string().optional().nullable(),
-  displayOrder: z.preprocess((val) => Number(val), z.number().int().default(0)),
+  displayOrder: z.preprocess(numberPreprocess, z.number().int().default(0)),
 });
 
 async function isAuthorizedForRestaurant(user: any, restaurantId: string): Promise<boolean> {
@@ -80,14 +93,15 @@ export async function updateCategory(req: AuthenticatedRequest, res: Response) {
       return res.status(403).json({ error: 'Not authorized to modify this category' });
     }
 
-    const body = categorySchema.parse(req.body);
+    const body = categorySchema.partial().parse(req.body);
+
+    const updateData: any = {};
+    if (body.name !== undefined) updateData.name = body.name;
+    if (body.displayOrder !== undefined) updateData.displayOrder = body.displayOrder;
 
     const category = await prisma.menuCategory.update({
       where: { id },
-      data: {
-        name: body.name,
-        displayOrder: body.displayOrder,
-      },
+      data: updateData,
     });
 
     clearMenuCache();
@@ -150,14 +164,14 @@ export async function createMenuItem(req: AuthenticatedRequest, res: Response) {
       data: {
         categoryId,
         name: body.name,
-        description: body.description,
+        description: body.description || null,
         price: body.price.toString(),
         isVeg: body.isVeg,
         isAvailable: body.isAvailable,
-        badge: body.badge,
-        prepTime: body.prepTime,
+        badge: body.badge || null,
+        prepTime: body.prepTime || null,
         displayOrder: body.displayOrder,
-        imageUrl,
+        imageUrl: imageUrl || null,
       },
     });
 
@@ -194,10 +208,15 @@ export async function updateMenuItem(req: AuthenticatedRequest, res: Response) {
     const body = itemSchema.partial().parse(req.body);
     const imageUrl = req.file ? await uploadToCloudinary(req.file.path) : undefined;
 
-    const updateData: any = { ...body };
-    if (body.price !== undefined) {
-      updateData.price = body.price.toString();
-    }
+    const updateData: any = {};
+    if (body.name !== undefined) updateData.name = body.name;
+    if (body.description !== undefined) updateData.description = body.description;
+    if (body.price !== undefined) updateData.price = body.price.toString();
+    if (body.isVeg !== undefined) updateData.isVeg = body.isVeg;
+    if (body.isAvailable !== undefined) updateData.isAvailable = body.isAvailable;
+    if (body.badge !== undefined) updateData.badge = body.badge;
+    if (body.prepTime !== undefined) updateData.prepTime = body.prepTime;
+    if (body.displayOrder !== undefined) updateData.displayOrder = body.displayOrder;
     if (imageUrl) {
       updateData.imageUrl = imageUrl;
     }

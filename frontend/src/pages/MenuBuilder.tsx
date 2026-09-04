@@ -49,12 +49,21 @@ const BADGE_DISPLAY: Record<string, string> = {
 const inputCls = 'w-full px-4 py-2.5 bg-[var(--cream)] border border-[var(--cream-border)] rounded-xl text-[var(--text)] placeholder-[var(--muted-light)] focus:outline-none focus:ring-2 focus:ring-[var(--sage)] focus:border-transparent text-sm transition-all';
 
 export default function MenuBuilder({ restaurantId }: MenuBuilderProps) {
-  const [categories, setCategories] = useState<MenuCategory[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cached = (() => {
+    try {
+      const data = sessionStorage.getItem(`fullmenu_${restaurantId}`);
+      return data ? JSON.parse(data) : null;
+    } catch { return null; }
+  })();
+
+  const [categories, setCategories] = useState<MenuCategory[]>(cached || []);
+  const [loading, setLoading] = useState(!cached);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set());
+  const [expandedCats, setExpandedCats] = useState<Set<string>>(
+    () => new Set(cached ? cached.map((c: MenuCategory) => c.id) : [])
+  );
 
   // Category Modal
   const [catModalOpen, setCatModalOpen] = useState(false);
@@ -84,11 +93,12 @@ export default function MenuBuilder({ restaurantId }: MenuBuilderProps) {
         const response = await api.get(`/api/restaurants/${restaurantId}/full-menu`);
         const cats: MenuCategory[] = response.data.categories || [];
         setCategories(cats);
+        sessionStorage.setItem(`fullmenu_${restaurantId}`, JSON.stringify(cats));
         // auto-expand all by default
         setExpandedCats(new Set(cats.map((c) => c.id)));
       }
     } catch (err) {
-      setError('Failed to fetch menu.');
+      if (!categories.length) setError('Failed to fetch menu.');
     } finally {
       setLoading(false);
     }

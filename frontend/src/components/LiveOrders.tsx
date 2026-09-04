@@ -76,9 +76,16 @@ function OrderSkeleton() {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function LiveOrders({ restaurantId, audioArmed }: LiveOrdersProps) {
-  const [orders, setOrders] = useState<Order[]>([]);
+  const cached = (() => {
+    try {
+      const data = sessionStorage.getItem(`orders_${restaurantId}`);
+      return data ? JSON.parse(data) : null;
+    } catch { return null; }
+  })();
+
+  const [orders, setOrders] = useState<Order[]>(cached || []);
   const [staffCalls, setStaffCalls] = useState<{ tableNumber: string; requestType: string; timestamp: string }[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!cached);
   const [error, setError] = useState('');
 
   // Keep a ref so the socket callback always sees the latest audioArmed value
@@ -115,11 +122,13 @@ export default function LiveOrders({ restaurantId, audioArmed }: LiveOrdersProps
     async function loadOrders() {
       try {
         const response = await api.get(`/api/restaurants/${restaurantId}/orders`);
-        setOrders(response.data.orders || []);
+        const list = response.data.orders || [];
+        setOrders(list);
+        sessionStorage.setItem(`orders_${restaurantId}`, JSON.stringify(list));
       } catch (err: any) {
         console.error('Failed to fetch orders:', err);
         const errorMsg = err.response?.data?.error || (err.response?.status === 401 ? 'Session expired. Please log in again.' : 'Failed to fetch orders.');
-        setError(errorMsg);
+        if (!orders.length) setError(errorMsg);
       } finally {
         setLoading(false);
       }
@@ -131,12 +140,20 @@ export default function LiveOrders({ restaurantId, audioArmed }: LiveOrdersProps
     socket.on('connect', () => socket.emit('join_restaurant', restaurantId));
 
     socket.on('new_order', (newOrder: Order) => {
-      setOrders((p) => [newOrder, ...p]);
+      setOrders((p) => {
+        const updated = [newOrder, ...p];
+        sessionStorage.setItem(`orders_${restaurantId}`, JSON.stringify(updated));
+        return updated;
+      });
       playNewOrderBeep();
     });
 
     socket.on('order_updated', (updated: Order) => {
-      setOrders((p) => p.map((o) => (o.id === updated.id ? updated : o)));
+      setOrders((p) => {
+        const list = p.map((o) => (o.id === updated.id ? updated : o));
+        sessionStorage.setItem(`orders_${restaurantId}`, JSON.stringify(list));
+        return list;
+      });
     });
 
     // NOTE: staff_call is NOT handled here — Dashboard.tsx handles it globally

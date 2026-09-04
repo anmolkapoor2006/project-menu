@@ -1,7 +1,10 @@
-import React, { useState, useEffect, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/api';
 import QRSection from '../components/QRSection';
+import MenuBuilder from './MenuBuilder';
+import LiveOrders from '../components/LiveOrders';
+import AnalyticsView from '../components/AnalyticsView';
 import { API_BASE_URL } from '../config';
 import io from 'socket.io-client';
 import { startStaffCallRingtone, unlockAudioContext } from '../utils/audio';
@@ -12,38 +15,37 @@ import {
 } from 'lucide-react';
 import { usePageMetadata } from '../utils/usePageMetadata';
 
-// Lazy-load heavy tabs — only downloaded when the tab is first opened
-const MenuBuilder = lazy(() => import('./MenuBuilder'));
-const LiveOrders = lazy(() => import('../components/LiveOrders'));
-const AnalyticsView = lazy(() => import('../components/AnalyticsView'));
-
-const TabLoader = () => (
-  <div className="flex justify-center items-center h-48">
-    <Loader2 className="animate-spin text-[var(--sage)]" size={32} />
-  </div>
-);
-
 export default function Dashboard() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'overview' | 'menu' | 'orders' | 'analytics'>('overview');
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const [user, setUser] = useState<any>({});
-  const [restaurant, setRestaurant] = useState<any>({});
+  const [user, setUser] = useState<any>(() => {
+    try {
+      const u = localStorage.getItem('user');
+      return u ? JSON.parse(u) : {};
+    } catch { return {}; }
+  });
+  const [restaurant, setRestaurant] = useState<any>(() => {
+    try {
+      const r = localStorage.getItem('restaurant');
+      return r ? JSON.parse(r) : {};
+    } catch { return {}; }
+  });
   const [announcement, setAnnouncement] = useState<any>(null);
 
   usePageMetadata(restaurant?.name ? `${restaurant.name} | Cafe Owner` : 'Cafe Owner | Dashboard', 'chef');
 
   const [editingProfile, setEditingProfile] = useState(false);
-  const [restName, setRestName] = useState('');
-  const [restAddress, setRestAddress] = useState('');
-  const [restContact, setRestContact] = useState('');
-  const [restUpiId, setRestUpiId] = useState('');
-  const [restUpiPayeeName, setRestUpiPayeeName] = useState('');
+  const [restName, setRestName] = useState(restaurant?.name || '');
+  const [restAddress, setRestAddress] = useState(restaurant?.address || '');
+  const [restContact, setRestContact] = useState(restaurant?.contactNumber || '');
+  const [restUpiId, setRestUpiId] = useState(restaurant?.upiId || '');
+  const [restUpiPayeeName, setRestUpiPayeeName] = useState(restaurant?.upiPayeeName || '');
   const [restLogo, setRestLogo] = useState<File | null>(null);
-  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(restaurant?.logoUrl ? (restaurant.logoUrl.startsWith('http') ? restaurant.logoUrl : `${API_BASE_URL}${restaurant.logoUrl}`) : null);
   const [restUpiQrImage, setRestUpiQrImage] = useState<File | null>(null);
-  const [upiQrPreview, setUpiQrPreview] = useState<string | null>(null);
+  const [upiQrPreview, setUpiQrPreview] = useState<string | null>(restaurant?.upiQrImageUrl ? (restaurant.upiQrImageUrl.startsWith('http') ? restaurant.upiQrImageUrl : `${API_BASE_URL}${restaurant.upiQrImageUrl}`) : null);
   const [logoError, setLogoError] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileError, setProfileError] = useState('');
@@ -51,14 +53,14 @@ export default function Dashboard() {
   // Staff Call Alert & 15-second Ringtone tune state
   const [staffCallAlert, setStaffCallAlert] = useState<{ tableNumber: string; requestType: string; timestamp: string } | null>(null);
   const [isRinging, setIsRinging] = useState(false);
-  const stopRingtoneRef = React.useRef<(() => void) | null>(null);
+  const stopRingtoneRef = useRef<(() => void) | null>(null);
 
   // Sound armed state — persisted so the owner only needs to enable once per browser
   const [audioArmed, setAudioArmed] = useState<boolean>(() => {
     return localStorage.getItem('dashboard_audio_armed') === 'true';
   });
   // Ref so the socket callback always sees the latest value (no stale closure)
-  const audioArmedRef = React.useRef(audioArmed);
+  const audioArmedRef = useRef(audioArmed);
   useEffect(() => { audioArmedRef.current = audioArmed; }, [audioArmed]);
 
   useEffect(() => {
@@ -454,9 +456,8 @@ export default function Dashboard() {
           )}
 
           {/* Overview Tab */}
-          {activeTab === 'overview' && (
-            <div className="space-y-6 fade-in">
-              {/* Cafe Profile Card */}
+          <div className={activeTab === 'overview' ? 'space-y-6' : 'hidden'}>
+            {/* Cafe Profile Card */}
               <div className="bg-white rounded-3xl border border-[var(--cream-border)] shadow-sm overflow-hidden">
                 <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--cream-dark)]">
                   <div>
@@ -600,11 +601,20 @@ export default function Dashboard() {
               {/* QR Section */}
               {restaurant.id && <QRSection restaurantId={restaurant.id} />}
             </div>
-          )}
 
-          {activeTab === 'menu' && restaurant.id && <div className="fade-in"><Suspense fallback={<TabLoader />}><MenuBuilder restaurantId={restaurant.id} /></Suspense></div>}
-          {activeTab === 'orders' && restaurant.id && <div className="fade-in"><Suspense fallback={<TabLoader />}><LiveOrders restaurantId={restaurant.id} audioArmed={audioArmed} /></Suspense></div>}
-          {activeTab === 'analytics' && restaurant.id && <div className="fade-in"><Suspense fallback={<TabLoader />}><AnalyticsView restaurantId={restaurant.id} /></Suspense></div>}
+          {restaurant.id && (
+            <>
+              <div className={activeTab === 'menu' ? 'block' : 'hidden'}>
+                <MenuBuilder restaurantId={restaurant.id} />
+              </div>
+              <div className={activeTab === 'orders' ? 'block' : 'hidden'}>
+                <LiveOrders restaurantId={restaurant.id} audioArmed={audioArmed} />
+              </div>
+              <div className={activeTab === 'analytics' ? 'block' : 'hidden'}>
+                <AnalyticsView restaurantId={restaurant.id} />
+              </div>
+            </>
+          )}
         </div>
       </main>
     </div>

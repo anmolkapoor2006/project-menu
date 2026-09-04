@@ -6,8 +6,8 @@ import { getIO } from '../io';
 import { z } from 'zod';
 
 const orderItemInputSchema = z.object({
-  menuItemId: z.string().uuid(),
-  quantity: z.number().int().positive(),
+  menuItemId: z.string().min(1, 'Menu item ID is required'),
+  quantity: z.preprocess((val) => Number(val), z.number().int().positive('Quantity must be at least 1')),
   notes: z.string().optional().nullable(),
 });
 
@@ -46,17 +46,20 @@ export async function placeOrder(req: Request, res: Response) {
       ? OrderStatus.PAYMENT_PENDING_VERIFICATION 
       : OrderStatus.RECEIVED;
 
-    // Fetch the menu items from the DB to get official prices
-    const menuItemIds = body.items.map((i) => i.menuItemId);
+    // Fetch the menu items from DB scoped to this restaurant
+    const uniqueItemIds = Array.from(new Set(body.items.map((i) => i.menuItemId)));
     const dbItems = await prisma.menuItem.findMany({
-      where: { id: { in: menuItemIds } }
+      where: {
+        id: { in: uniqueItemIds },
+        category: { restaurantId: restaurant.id }
+      }
     });
 
-    // Validate all items exist BEFORE starting the transaction (return 400 not 500)
+    // Validate all items exist and belong to this restaurant
     const dbItemsMap = new Map(dbItems.map((item) => [item.id, item]));
-    const missingItemId = menuItemIds.find((id) => !dbItemsMap.has(id));
+    const missingItemId = uniqueItemIds.find((id) => !dbItemsMap.has(id));
     if (missingItemId) {
-      return res.status(400).json({ error: 'One or more menu items are no longer available. Please refresh the menu and try again.' });
+      return res.status(400).json({ error: 'One or more menu items are unavailable or invalid. Please refresh the menu and try again.' });
     }
 
     // Build the transaction
@@ -182,6 +185,9 @@ export async function getOrders(req: AuthenticatedRequest, res: Response) {
       where: { restaurantId },
       orderBy: { createdAt: 'desc' },
       include: {
+        restaurant: {
+          select: { id: true, name: true, upiId: true, upiPayeeName: true, upiQrImageUrl: true }
+        },
         items: {
           include: {
             menuItem: {

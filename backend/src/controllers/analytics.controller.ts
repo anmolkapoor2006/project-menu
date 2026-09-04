@@ -28,52 +28,34 @@ export async function getRestaurantAnalytics(req: AuthenticatedRequest, res: Res
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
 
-    // Run ALL queries in parallel — ~5x faster than sequential
-    const [events, trendEvents, topItemsData, allOrders, todayOrders, orderItems] = await Promise.all([
-      // 1. All QR scan events
-      prisma.qRScanEvent.findMany({ where: { restaurantId } }),
-      // 2. Last 30-day trend events
+    // Run only 2 lean queries in parallel instead of 6 redundant round-trips
+    const [events, nonCancelledOrders] = await Promise.all([
+      // 1. All QR scan events with lean columns
       prisma.qRScanEvent.findMany({
-        where: { restaurantId, timestamp: { gte: thirtyDaysAgo } },
-        orderBy: { timestamp: 'asc' },
+        where: { restaurantId },
+        select: { source: true, timestamp: true },
       }),
-      // 3. Top items by quantity
-      prisma.orderItem.groupBy({
-        by: ['menuItemId'],
-        where: { order: { restaurantId, status: { not: 'CANCELLED' } } },
-        _sum: { quantity: true },
-        orderBy: { _sum: { quantity: 'desc' } },
-        take: 5,
-      }),
-      // 4. All non-cancelled orders with items
+      // 2. All non-cancelled orders with order items and menu item names
       prisma.order.findMany({
         where: { restaurantId, status: { not: 'CANCELLED' } },
-        include: { items: true },
-      }),
-      // 5. Today's orders
-      prisma.order.findMany({
-        where: { restaurantId, status: { not: 'CANCELLED' }, createdAt: { gte: startOfToday } },
-        include: { items: true },
-      }),
-      // 6. All order items for product breakdown
-      prisma.orderItem.findMany({
-        where: { order: { restaurantId, status: { not: 'CANCELLED' } } },
-        include: { menuItem: { select: { name: true } } },
+        select: {
+          createdAt: true,
+          items: {
+            select: {
+              quantity: true,
+              priceAtOrder: true,
+              menuItem: {
+                select: { id: true, name: true }
+              }
+            }
+          }
+        },
       }),
     ]);
 
-    // --- Compute metrics ---
+    // --- Compute metrics in single-pass memory (sub-millisecond) ---
     const totalViews = events.length;
-    const totalScans = events.filter((e) => e.source === 'qr').length;
-    const conversionRate = totalViews > 0 ? parseFloat(((totalScans / totalViews) * 100).toFixed(1)) : 0;
-    const totalOrders = allOrders.length;
-
-    const todayEarnings = todayOrders.reduce((sum, order) =>
-      sum + order.items.reduce((s, i) => s + Number(i.priceAtOrder) * i.quantity, 0), 0);
-    const totalEarnings = allOrders.reduce((sum, order) =>
-      sum + order.items.reduce((s, i) => s + Number(i.priceAtOrder) * i.quantity, 0), 0);
-
-    // 30-day trend
+    let totalScans = 0;
     const dailyDataMap = new Map<string, { date: string; views: number; scans: number }>();
     for (let i = 29; i >= 0; i--) {
       const d = new Date();
@@ -81,41 +63,68 @@ export async function getRestaurantAnalytics(req: AuthenticatedRequest, res: Res
       const dateStr = d.toISOString().split('T')[0];
       dailyDataMap.set(dateStr, { date: dateStr, views: 0, scans: 0 });
     }
-    trendEvents.forEach((event) => {
-      const dateStr = event.timestamp.toISOString().split('T')[0];
-      const existing = dailyDataMap.get(dateStr);
-      if (existing) {
-        if (event.source === 'qr') existing.scans++;
-        existing.views++;
+
+    events.forEach((event) => {
+      const isQr = event.source === 'qr';
+      if (isQr) totalScans++;
+      if (event.timestamp >= thirtyDaysAgo) {
+        const dateStr = event.timestamp.toISOString().split('T')[0];
+        const entry = dailyDataMap.get(dateStr);
+        if (entry) {
+          if (isQr) entry.scans++;
+          entry.views++;
+        }
       }
     });
-    const viewsTrend = Array.from(dailyDataMap.values());
 
-    // Top items
-    const topItemDetails = await prisma.menuItem.findMany({
-      where: { id: { in: topItemsData.map((d) => d.menuItemId) } },
-      select: { id: true, name: true },
-    });
-    const itemDetailsMap = new Map(topItemDetails.map((item) => [item.id, item.name]));
-    const topItems = topItemsData.map((data) => ({
-      name: itemDetailsMap.get(data.menuItemId) || 'Unknown Item',
-      value: data._sum.quantity || 0,
-    }));
+    const conversionRate = totalViews > 0 ? parseFloat(((totalScans / totalViews) * 100).toFixed(1)) : 0;
+    const totalOrders = nonCancelledOrders.length;
 
-    // Product earnings breakdown
+    let todayEarnings = 0;
+    let totalEarnings = 0;
     const productMap = new Map<string, { name: string; qtySold: number; totalRevenue: number }>();
-    orderItems.forEach((item) => {
-      const name = item.menuItem?.name || 'Unknown Item';
-      const revenue = Number(item.priceAtOrder) * item.quantity;
-      const existing = productMap.get(name);
-      if (existing) {
-        existing.qtySold += item.quantity;
-        existing.totalRevenue += revenue;
-      } else {
-        productMap.set(name, { name, qtySold: item.quantity, totalRevenue: revenue });
+    const topItemQtyMap = new Map<string, { name: string; quantity: number }>();
+
+    for (const order of nonCancelledOrders) {
+      const isToday = order.createdAt >= startOfToday;
+      let orderTotal = 0;
+
+      for (const item of order.items) {
+        const revenue = Number(item.priceAtOrder) * item.quantity;
+        orderTotal += revenue;
+
+        const itemName = item.menuItem?.name || 'Unknown Item';
+        const existingProd = productMap.get(itemName);
+        if (existingProd) {
+          existingProd.qtySold += item.quantity;
+          existingProd.totalRevenue += revenue;
+        } else {
+          productMap.set(itemName, { name: itemName, qtySold: item.quantity, totalRevenue: revenue });
+        }
+
+        const itemId = item.menuItem?.id || itemName;
+        const existingTop = topItemQtyMap.get(itemId);
+        if (existingTop) {
+          existingTop.quantity += item.quantity;
+        } else {
+          topItemQtyMap.set(itemId, { name: itemName, quantity: item.quantity });
+        }
       }
-    });
+
+      totalEarnings += orderTotal;
+      if (isToday) {
+        todayEarnings += orderTotal;
+      }
+    }
+
+    const viewsTrend = Array.from(dailyDataMap.values());
     const productEarnings = Array.from(productMap.values()).sort((a, b) => b.totalRevenue - a.totalRevenue);
+    const topItems = Array.from(topItemQtyMap.values())
+      .sort((a, b) => b.quantity - a.quantity)
+      .slice(0, 5)
+      .map((t) => ({ name: t.name, value: t.quantity }));
+
+    res.setHeader('Cache-Control', 'private, max-age=5, stale-while-revalidate=15');
 
     return res.json({
       summary: {

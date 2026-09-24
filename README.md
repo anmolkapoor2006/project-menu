@@ -14,7 +14,7 @@ A high-performance, multi-tenant digital menu and real-time kitchen orchestratio
 
 ---
 
-## 🏗️ System Architecture
+## System Architecture
 
 ```
                                   ┌────────────────────────┐
@@ -38,37 +38,37 @@ A high-performance, multi-tenant digital menu and real-time kitchen orchestratio
 
 ---
 
-## 🌟 Core Features & Technical Highlights
+## Core Features & Technical Highlights
 
-### 1. 📱 Mobile-First Customer Experience
+### 1. Mobile-First Customer Experience
 - **Instant Scan-to-Order**: Instant rendering with dynamic category navigation pills and live search.
 - **Dietary & Veg/Non-Veg Filtering**: Real-time client-side item filtering with zero re-fetch latency.
 - **Cart Drawer & Deep Linking**: Persistent cart state with per-item customization notes and table identifier.
 
-### 2. ⚡ Real-Time Kitchen Display System (KDS)
+### 2. Real-Time Kitchen Display System (KDS)
 - **Room-Isolated WebSockets**: Restaurant-scoped rooms (`restaurant_<id>`) ensure low-latency order dispatching without cross-tenant message leakage.
 - **Resilient Web Audio Alert Engine**: Overcomes strict browser autoplay restrictions using a singleton `AudioContext` arming and gesture unlock architecture with graceful fallback.
 - **15-Second Persistent Staff Call Chimes**: Continuous ringtone dispatch when customers request waiter service or assistance.
 - **State Machine Workflow**: Enforces strict transitions (`RECEIVED` $\rightarrow$ `PREPARING` $\rightarrow$ `SERVED` / `CANCELLED`) with automatic stale-order flags for unverified payments.
 
-### 3. 💸 Direct UPI Payments (Zero-Gateway Fees)
+### 3. Direct UPI Payments (Zero-Gateway Fees)
 - **Frictionless Deep Linking**: Generates native `upi://pay` deep links directly launching GPay, PhonePe, and Paytm.
 - **Dynamic & Uploaded QR Support**: Supports dynamic client-side amount QR synthesis as well as high-contrast static merchant QR codes.
 - **Merchant Verification Lifecycle**: Holds orders in `PAYMENT_PENDING_VERIFICATION` until verified by kitchen staff.
 
-### 4. 📊 Analytics & Menu Engineering
+### 4. Analytics & Menu Engineering
 - **Item-Level Revenue & Velocity Tracking**: Per-product volume and revenue aggregation with one-click CSV report export.
 - **Traffic Trends**: Day-by-day scanning and view analytics powered by `Recharts`.
-- **Granular Availability & Badging**: Instant "Sold Out" toggles and promotional badges (🔥 Bestseller, 🌶️ Spicy, ⭐ Chef Special, 🆕 New).
+- **Granular Availability & Badging**: Instant "Sold Out" toggles and promotional badges (Bestseller, Spicy, Chef Special, New).
 
-### 5. 🛡️ Multi-Tenant Security & Isolation
+### 5. Multi-Tenant Security & Isolation
 - **Role-Based Access Control (RBAC)**: `SUPER_ADMIN` and `RESTAURANT_ADMIN` tiers guarded by JWT middleware.
 - **Tenant Scope Enforcement**: Database queries scoped to tenant IDs with ownership validation.
 - **Input Validation**: Strict request schema validation powered by `Zod`.
 
 ---
 
-## 🗂️ Project Structure
+## Project Structure
 
 ```
 ├── backend/
@@ -94,7 +94,7 @@ A high-performance, multi-tenant digital menu and real-time kitchen orchestratio
 
 ---
 
-## 🛠️ Technology Stack
+## Technology Stack
 
 | Domain | Technology |
 |---|---|
@@ -106,7 +106,7 @@ A high-performance, multi-tenant digital menu and real-time kitchen orchestratio
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 - Node.js (v18.x or higher)
@@ -146,7 +146,7 @@ npm run dev
 
 ---
 
-## ⚙️ Environment Configuration
+## Environment Configuration
 
 ### Backend (`backend/.env`)
 ```env
@@ -163,7 +163,7 @@ VITE_API_URL="http://localhost:5001"
 
 ---
 
-## 📡 Key REST API Endpoints
+## Key REST API Endpoints
 
 ### Authentication
 - `POST /api/auth/register` — Register owner account & generate cafe workspace.
@@ -185,7 +185,7 @@ VITE_API_URL="http://localhost:5001"
 
 ---
 
-## 🗄️ Database Schema Overview
+## Database Schema Overview
 
 ```
 User (1) ────────── (N) Restaurant (1) ────────── (N) MenuCategory
@@ -200,7 +200,7 @@ User (1) ────────── (N) Restaurant (1) ───────
 
 ---
 
-## 🚢 Deployment
+## Deployment
 
 ### Frontend (Vercel / Netlify)
 - **Build Command**: `npm run build`
@@ -213,5 +213,5 @@ User (1) ────────── (N) Restaurant (1) ───────
 
 ---
 
-## 📄 License
+## License
 This project is open-source and available under the [MIT License](LICENSE).

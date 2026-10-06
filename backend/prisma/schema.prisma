@@ -46,6 +46,7 @@ model Restaurant {
   upiId              String?
   upiPayeeName       String?
   upiQrImageUrl      String?
+  googleReviewUrl    String?
   isActive           Boolean        @default(true)
   isAcceptingOrders  Boolean        @default(true)
   categories         MenuCategory[]
@@ -81,6 +82,7 @@ model MenuItem {
   isAvailable  Boolean     @default(true)
   badge        String?
   prepTime     String?
+  variants     Json?
   displayOrder Int         @default(0)
   orderItems   OrderItem[]
   createdAt    DateTime    @default(now())

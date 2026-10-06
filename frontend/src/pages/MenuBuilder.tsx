@@ -6,6 +6,9 @@ import {
   Utensils, ChevronRight, Tag, Clock, LayoutGrid, List
 } from 'lucide-react';
 
+export interface VariantOption { name: string; price: number; }
+export interface VariantGroup { name: string; required?: boolean; options: VariantOption[]; }
+
 interface MenuItem {
   id: string;
   categoryId: string;
@@ -17,6 +20,7 @@ interface MenuItem {
   isAvailable: boolean;
   badge: string | null;
   prepTime: string | null;
+  variants?: VariantGroup[] | null;
   displayOrder: number;
 }
 
@@ -85,7 +89,7 @@ export default function MenuBuilder({ restaurantId }: MenuBuilderProps) {
   const [itemOrder, setItemOrder] = useState(0);
   const [itemImage, setItemImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-
+  const [itemVariants, setItemVariants] = useState<VariantGroup[]>([]);
 
   const fetchMenu = async () => {
     try {
@@ -152,11 +156,70 @@ export default function MenuBuilder({ restaurantId }: MenuBuilderProps) {
       setItemPrice(item.price); setItemVeg(item.isVeg); setItemAvailable(item.isAvailable);
       setItemBadge(item.badge || ''); setItemPrepTime(item.prepTime || ''); setItemOrder(item.displayOrder);
       if (item.imageUrl) setImagePreview(item.imageUrl.startsWith('http') ? item.imageUrl : `${API_BASE_URL}${item.imageUrl}`);
+      
+      let parsedVariants: VariantGroup[] = [];
+      if (item.variants) {
+        if (typeof item.variants === 'string') {
+          try { parsedVariants = JSON.parse(item.variants); } catch { parsedVariants = []; }
+        } else if (Array.isArray(item.variants)) {
+          parsedVariants = JSON.parse(JSON.stringify(item.variants));
+        }
+      }
+      setItemVariants(parsedVariants);
     } else {
       setEditingItem(null); setItemName(''); setItemDesc(''); setItemPrice('');
       setItemVeg(true); setItemAvailable(true); setItemBadge(''); setItemPrepTime(''); setItemOrder(0);
+      setItemVariants([]);
     }
     setItemModalOpen(true);
+  };
+
+  const handleAddVariantGroup = (presetName = 'Size', defaultOpts: VariantOption[] = [{ name: 'Regular', price: 0 }, { name: 'Large', price: 30 }]) => {
+    setItemVariants((prev) => [
+      ...prev,
+      {
+        name: presetName,
+        required: presetName.toLowerCase().includes('size') || presetName.toLowerCase().includes('portion'),
+        options: defaultOpts
+      }
+    ]);
+  };
+
+  const handleRemoveVariantGroup = (index: number) => {
+    setItemVariants((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleUpdateGroupName = (index: number, name: string) => {
+    setItemVariants((prev) => prev.map((g, i) => i === index ? { ...g, name } : g));
+  };
+
+  const handleToggleGroupRequired = (index: number) => {
+    setItemVariants((prev) => prev.map((g, i) => i === index ? { ...g, required: !g.required } : g));
+  };
+
+  const handleAddOption = (groupIndex: number) => {
+    setItemVariants((prev) => prev.map((g, i) => {
+      if (i !== groupIndex) return g;
+      return { ...g, options: [...g.options, { name: '', price: 0 }] };
+    }));
+  };
+
+  const handleUpdateOption = (groupIndex: number, optIndex: number, field: 'name' | 'price', value: any) => {
+    setItemVariants((prev) => prev.map((g, gi) => {
+      if (gi !== groupIndex) return g;
+      const updatedOpts = g.options.map((opt, oi) => {
+        if (oi !== optIndex) return opt;
+        return { ...opt, [field]: field === 'price' ? (parseFloat(value) || 0) : value };
+      });
+      return { ...g, options: updatedOpts };
+    }));
+  };
+
+  const handleRemoveOption = (groupIndex: number, optIndex: number) => {
+    setItemVariants((prev) => prev.map((g, gi) => {
+      if (gi !== groupIndex) return g;
+      return { ...g, options: g.options.filter((_, oi) => oi !== optIndex) };
+    }));
   };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -170,6 +233,18 @@ export default function MenuBuilder({ restaurantId }: MenuBuilderProps) {
     formData.append('price', itemPrice); formData.append('isVeg', String(itemVeg));
     formData.append('isAvailable', String(itemAvailable)); formData.append('badge', itemBadge);
     formData.append('prepTime', itemPrepTime); formData.append('displayOrder', String(itemOrder));
+    
+    // Clean variants to only include groups with valid names & options
+    const cleanedVariants = itemVariants
+      .filter((g) => g.name.trim() && g.options.length > 0)
+      .map((g) => ({
+        name: g.name.trim(),
+        required: Boolean(g.required),
+        options: g.options.filter((o) => o.name.trim()).map((o) => ({ name: o.name.trim(), price: Number(o.price) || 0 }))
+      }))
+      .filter((g) => g.options.length > 0);
+
+    formData.append('variants', JSON.stringify(cleanedVariants));
     if (itemImage) formData.append('image', itemImage);
     try {
       if (editingItem) {
@@ -389,6 +464,11 @@ export default function MenuBuilder({ restaurantId }: MenuBuilderProps) {
                                 <Clock size={10} /> {item.prepTime}
                               </p>
                             )}
+                            {item.variants && (Array.isArray(item.variants) ? item.variants.length > 0 : Boolean(item.variants)) && (
+                              <span className="inline-flex items-center gap-1 text-[10px] text-[var(--sage)] bg-[var(--sage-light)] font-bold px-2 py-0.5 rounded-md">
+                                ✨ Modifiers
+                              </span>
+                            )}
 
                             {/* Actions */}
                             <div className="flex items-center gap-1.5 pt-1 border-t border-[var(--cream-border)]">
@@ -456,6 +536,11 @@ export default function MenuBuilder({ restaurantId }: MenuBuilderProps) {
                               {item.badge && (
                                 <span className="text-[9px] bg-[var(--sage)] text-white px-1.5 py-0.5 rounded-full font-bold shrink-0">
                                   {BADGE_DISPLAY[item.badge]}
+                                </span>
+                              )}
+                              {item.variants && (Array.isArray(item.variants) ? item.variants.length > 0 : Boolean(item.variants)) && (
+                                <span className="text-[9px] bg-[var(--sage-light)] text-[var(--sage)] px-1.5 py-0.5 rounded-md font-bold shrink-0">
+                                  ✨ Modifiers
                                 </span>
                               )}
                             </div>
@@ -671,6 +756,120 @@ export default function MenuBuilder({ restaurantId }: MenuBuilderProps) {
                     </button>
                   ))}
                 </div>
+              </div>
+
+              {/* Customizations & Modifiers (Sizes & Add-ons) */}
+              <div className="space-y-3 pt-2 border-t border-[var(--cream-border)]">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="text-xs font-bold text-[var(--text)] uppercase tracking-wider block">
+                      Customizations &amp; Modifiers
+                    </label>
+                    <p className="text-[11px] text-[var(--muted)]">Add sizes (Small/Large) or optional add-ons (Extra Cheese, Toppings)</p>
+                  </div>
+                </div>
+
+                {/* Preset quick buttons */}
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleAddVariantGroup('Size', [
+                      { name: 'Regular', price: 0 },
+                      { name: 'Medium', price: 30 },
+                      { name: 'Large', price: 60 }
+                    ])}
+                    className="text-xs px-3 py-1.5 rounded-xl border border-[var(--sage)]/30 bg-[var(--sage-light)] text-[var(--sage)] font-semibold hover:bg-[var(--sage)] hover:text-white transition-all"
+                  >
+                    + Add Size Group (Regular/Large)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleAddVariantGroup('Add-ons', [
+                      { name: 'Extra Cheese', price: 30 },
+                      { name: 'Extra Dip / Sauce', price: 20 }
+                    ])}
+                    className="text-xs px-3 py-1.5 rounded-xl border border-[var(--cream-border)] bg-[var(--cream)] text-[var(--text-mid)] font-semibold hover:border-[var(--cream-dark)] transition-all"
+                  >
+                    + Add Custom Add-on Group
+                  </button>
+                </div>
+
+                {/* List of Variant Groups */}
+                {itemVariants.length > 0 && (
+                  <div className="space-y-3 mt-3">
+                    {itemVariants.map((group, gIdx) => (
+                      <div key={gIdx} className="bg-[var(--cream)] border border-[var(--cream-border)] rounded-2xl p-3.5 space-y-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <input
+                            type="text"
+                            value={group.name}
+                            onChange={(e) => handleUpdateGroupName(gIdx, e.target.value)}
+                            placeholder="Group Name (e.g. Size, Crust, Add-ons)"
+                            className="text-xs font-bold text-[var(--text)] bg-white border border-[var(--cream-border)] px-2.5 py-1.5 rounded-lg flex-1 focus:outline-none focus:ring-1 focus:ring-[var(--sage)]"
+                          />
+                          <label className="flex items-center gap-1.5 text-[11px] text-[var(--muted)] shrink-0 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={Boolean(group.required)}
+                              onChange={() => handleToggleGroupRequired(gIdx)}
+                              className="rounded text-[var(--sage)] focus:ring-0"
+                            />
+                            <span>Required (1 choice)</span>
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveVariantGroup(gIdx)}
+                            className="p-1 text-[var(--muted)] hover:text-red-500 rounded-lg transition-all"
+                            title="Remove group"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+
+                        {/* Options in group */}
+                        <div className="space-y-2">
+                          {group.options.map((opt, oIdx) => (
+                            <div key={oIdx} className="flex items-center gap-2">
+                              <input
+                                type="text"
+                                value={opt.name}
+                                onChange={(e) => handleUpdateOption(gIdx, oIdx, 'name', e.target.value)}
+                                placeholder="Option name (e.g. Large, Extra Cheese)"
+                                className="text-xs text-[var(--text)] bg-white border border-[var(--cream-border)] px-2.5 py-1.5 rounded-lg flex-1 focus:outline-none focus:ring-1 focus:ring-[var(--sage)]"
+                              />
+                              <div className="flex items-center bg-white border border-[var(--cream-border)] rounded-lg px-2 py-1 shrink-0 w-24">
+                                <span className="text-[11px] text-[var(--muted)] mr-1">+₹</span>
+                                <input
+                                  type="number"
+                                  step="1"
+                                  value={opt.price}
+                                  onChange={(e) => handleUpdateOption(gIdx, oIdx, 'price', e.target.value)}
+                                  className="text-xs font-mono font-bold text-[var(--sage)] w-full bg-transparent focus:outline-none"
+                                />
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveOption(gIdx, oIdx)}
+                                className="p-1 text-[var(--muted)] hover:text-red-500 rounded-lg transition-all shrink-0"
+                                title="Remove option"
+                              >
+                                <X size={12} />
+                              </button>
+                            </div>
+                          ))}
+
+                          <button
+                            type="button"
+                            onClick={() => handleAddOption(gIdx)}
+                            className="text-[11px] font-semibold text-[var(--sage)] hover:underline flex items-center gap-1 pt-1"
+                          >
+                            <Plus size={11} /> Add another option
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Display Order */}

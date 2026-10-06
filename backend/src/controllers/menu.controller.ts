@@ -31,6 +31,7 @@ const itemSchema = z.object({
   isAvailable: z.preprocess(booleanPreprocess, z.boolean().default(true)),
   badge: z.string().optional().nullable(),
   prepTime: z.string().optional().nullable(),
+  variants: z.any().optional().nullable(),
   displayOrder: z.preprocess(numberPreprocess, z.number().int().default(0)),
 });
 
@@ -160,6 +161,11 @@ export async function createMenuItem(req: AuthenticatedRequest, res: Response) {
     const body = itemSchema.parse(req.body);
     const imageUrl = req.file ? await uploadToCloudinary(req.file.path) : undefined;
 
+    let variantsData = body.variants;
+    if (typeof variantsData === 'string') {
+      try { variantsData = JSON.parse(variantsData); } catch {}
+    }
+
     const item = await prisma.menuItem.create({
       data: {
         categoryId,
@@ -170,6 +176,7 @@ export async function createMenuItem(req: AuthenticatedRequest, res: Response) {
         isAvailable: body.isAvailable,
         badge: body.badge || null,
         prepTime: body.prepTime || null,
+        variants: variantsData || undefined,
         displayOrder: body.displayOrder,
         imageUrl: imageUrl || null,
       },
@@ -217,6 +224,13 @@ export async function updateMenuItem(req: AuthenticatedRequest, res: Response) {
     if (body.badge !== undefined) updateData.badge = body.badge;
     if (body.prepTime !== undefined) updateData.prepTime = body.prepTime;
     if (body.displayOrder !== undefined) updateData.displayOrder = body.displayOrder;
+    if (body.variants !== undefined) {
+      let v = body.variants;
+      if (typeof v === 'string') {
+        try { v = JSON.parse(v); } catch {}
+      }
+      updateData.variants = v || null;
+    }
     if (imageUrl) {
       updateData.imageUrl = imageUrl;
     }

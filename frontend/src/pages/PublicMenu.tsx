@@ -12,18 +12,29 @@ import {
 } from 'lucide-react';
 import { usePageMetadata } from '../utils/usePageMetadata';
 
+export interface VariantOption { name: string; price: number; }
+export interface VariantGroup { name: string; required?: boolean; options: VariantOption[]; }
+
 interface MenuItem {
   id: string; name: string; description: string | null; price: string;
   imageUrl: string | null; isVeg: boolean; isAvailable: boolean;
   badge: string | null; prepTime?: string | null;
+  variants?: VariantGroup[] | string | null;
 }
 interface MenuCategory { id: string; name: string; items: MenuItem[]; }
 interface Restaurant {
   id: string; name: string; logoUrl: string | null; address: string | null;
   contactNumber: string | null; upiId?: string | null; upiPayeeName?: string | null;
-  upiQrImageUrl?: string | null; isAcceptingOrders: boolean; categories: MenuCategory[];
+  upiQrImageUrl?: string | null; googleReviewUrl?: string | null;
+  isAcceptingOrders: boolean; categories: MenuCategory[];
 }
-interface CartItem { menuItem: MenuItem; quantity: number; notes: string; }
+interface CartItem {
+  cartId: string;
+  menuItem: MenuItem;
+  quantity: number;
+  notes: string;
+  unitPrice: number;
+}
 
 type View = 'menu' | 'cart' | 'checkout' | 'payment' | 'confirmation';
 
@@ -88,11 +99,15 @@ export default function PublicMenu() {
 
   const [confirmedToast, setConfirmedToast] = useState('');
 
+  // Item Customizer / Modifiers modal
+  const [customizingItem, setCustomizingItem] = useState<MenuItem | null>(null);
+  const [selectedOptions, setSelectedOptions] = useState<Record<string, VariantOption[]>>({});
+  const [customNotes, setCustomNotes] = useState('');
 
   const categoryRefs = useRef<{ [id: string]: HTMLElement | null }>({});
 
   useEffect(() => {
-    const locked = view === 'cart' || showCallStaffModal;
+    const locked = view === 'cart' || showCallStaffModal || Boolean(customizingItem);
     if (locked) {
       const y = window.scrollY;
       document.body.style.cssText = `position:fixed;top:-${y}px;width:100%;overflow:hidden`;
@@ -102,7 +117,7 @@ export default function PublicMenu() {
       if (y) window.scrollTo(0, -y);
     }
     return () => { document.body.style.cssText = ''; };
-  }, [view, showCallStaffModal]);
+  }, [view, showCallStaffModal, customizingItem]);
 
   useEffect(() => {
     async function load() {
@@ -196,7 +211,7 @@ export default function PublicMenu() {
     const upiId = restaurant?.upiId;
     if (!upiId) return;
     const payee = restaurant?.upiPayeeName || restaurant?.name || 'Cafe';
-    const amount = cart.reduce((s, i) => s + parseFloat(i.menuItem.price) * i.quantity, 0).toFixed(2);
+    const amount = cart.reduce((s, i) => s + (i.unitPrice ?? parseFloat(i.menuItem.price)) * i.quantity, 0).toFixed(2);
     const link = `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(payee)}&am=${amount}&cu=INR&tn=${encodeURIComponent('Cafe Order')}`;
     setUpiDeepLink(link);
   }, [restaurant?.upiId, restaurant?.upiPayeeName, restaurant?.name, cart]);
@@ -216,30 +231,102 @@ export default function PublicMenu() {
     gen();
   }, [restaurant?.upiId, restaurant?.upiPayeeName, restaurant?.upiQrImageUrl, restaurant?.name]);
 
-  const addToCart = (item: MenuItem) =>
+  const addToCart = (item: MenuItem) => {
+    const basePrice = parseFloat(item.price);
+    const cartId = `${item.id}--${basePrice}`;
     setCart((p) => {
-      const ex = p.find((i) => i.menuItem.id === item.id);
-      if (ex) return p.map((i) => i.menuItem.id === item.id ? { ...i, quantity: i.quantity + 1 } : i);
-      return [...p, { menuItem: item, quantity: 1, notes: '' }];
+      const ex = p.find((i) => i.cartId === cartId);
+      if (ex) return p.map((i) => i.cartId === cartId ? { ...i, quantity: i.quantity + 1 } : i);
+      return [...p, { cartId, menuItem: item, quantity: 1, notes: '', unitPrice: basePrice }];
+    });
+  };
+
+  const handleItemClickOrAdd = (item: MenuItem) => {
+    let parsedVariants: VariantGroup[] = [];
+    if (item.variants) {
+      if (typeof item.variants === 'string') {
+        try { parsedVariants = JSON.parse(item.variants); } catch { parsedVariants = []; }
+      } else if (Array.isArray(item.variants)) {
+        parsedVariants = item.variants;
+      }
+    }
+
+    if (parsedVariants.length > 0) {
+      // Has modifiers! Open customization modal
+      setCustomizingItem({ ...item, variants: parsedVariants });
+      const initSelected: Record<string, VariantOption[]> = {};
+      parsedVariants.forEach((group) => {
+        if (group.required && group.options.length > 0) {
+          initSelected[group.name] = [group.options[0]];
+        } else {
+          initSelected[group.name] = [];
+        }
+      });
+      setSelectedOptions(initSelected);
+      setCustomNotes('');
+    } else {
+      addToCart(item);
+    }
+  };
+
+  const handleConfirmCustomization = () => {
+    if (!customizingItem) return;
+    const groups = (customizingItem.variants as VariantGroup[]) || [];
+    let totalAddon = 0;
+    const selectedTexts: string[] = [];
+
+    groups.forEach((g) => {
+      const selected = selectedOptions[g.name] || [];
+      selected.forEach((opt) => {
+        totalAddon += Number(opt.price) || 0;
+        selectedTexts.push(opt.price > 0 ? `${opt.name} (+₹${opt.price})` : opt.name);
+      });
     });
 
-  const updateQty = (itemId: string, delta: number) =>
-    setCart((p) => p.map((i) => i.menuItem.id === itemId ? { ...i, quantity: i.quantity + delta } : i).filter((i) => i.quantity > 0));
+    const basePrice = parseFloat(customizingItem.price);
+    const finalUnitPrice = basePrice + totalAddon;
+    
+    let formattedNotes = selectedTexts.join(', ');
+    if (customNotes.trim()) {
+      formattedNotes = formattedNotes ? `${formattedNotes} • Note: ${customNotes.trim()}` : customNotes.trim();
+    }
 
-  const updateNotes = (itemId: string, notes: string) =>
-    setCart((p) => p.map((i) => i.menuItem.id === itemId ? { ...i, notes } : i));
+    const cartId = `${customizingItem.id}-${formattedNotes}-${finalUnitPrice}`;
+
+    setCart((prev) => {
+      const exIdx = prev.findIndex((i) => i.cartId === cartId);
+      if (exIdx >= 0) {
+        return prev.map((i, idx) => idx === exIdx ? { ...i, quantity: i.quantity + 1 } : i);
+      }
+      return [
+        ...prev,
+        {
+          cartId,
+          menuItem: customizingItem,
+          quantity: 1,
+          notes: formattedNotes,
+          unitPrice: finalUnitPrice,
+        }
+      ];
+    });
+
+    setCustomizingItem(null);
+  };
+
+  const updateQty = (cartId: string, delta: number) =>
+    setCart((p) => p.map((i) => i.cartId === cartId ? { ...i, quantity: i.quantity + delta } : i).filter((i) => i.quantity > 0));
+
+  const updateNotes = (cartId: string, notes: string) =>
+    setCart((p) => p.map((i) => i.cartId === cartId ? { ...i, notes } : i));
 
   const cartCount = cart.reduce((s, i) => s + i.quantity, 0);
-  const cartTotal = cart.reduce((s, i) => s + parseFloat(i.menuItem.price) * i.quantity, 0);
+  const cartTotal = cart.reduce((s, i) => s + (i.unitPrice ?? parseFloat(i.menuItem.price)) * i.quantity, 0);
 
   const scrollToCategory = (id: string) => {
     setActiveCategory(id);
     const el = categoryRefs.current[id];
     if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 110, behavior: 'smooth' });
   };
-
-  // Naam ke bina order submit nahi hoga.
-
 
   const handlePlaceOrder = async (method: 'COUNTER' | 'UPI') => {
     if (!customerName.trim()) { setNameError('Please enter your name so the cafe can call you when ready.'); return; }
@@ -249,7 +336,12 @@ export default function PublicMenu() {
         customerName: customerName.trim(),
         tableNumber: null,
         paymentMethod: method,
-        items: cart.map((i) => ({ menuItemId: i.menuItem.id, quantity: i.quantity, notes: i.notes.trim() || null })),
+        items: cart.map((i) => ({
+          menuItemId: i.menuItem.id,
+          quantity: i.quantity,
+          unitPrice: i.unitPrice ?? parseFloat(i.menuItem.price),
+          notes: i.notes.trim() || null
+        })),
       });
       const placed = res.data.order;
       setLastPlacedOrder(placed);
@@ -487,6 +579,36 @@ export default function PublicMenu() {
               )}
             </div>
 
+            {restaurant.googleReviewUrl && (
+              <div className="bg-gradient-to-br from-amber-500/10 via-amber-400/5 to-transparent border border-amber-300/50 rounded-3xl p-5 space-y-3 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1 text-amber-500 text-sm font-bold">
+                    <span>★</span><span>★</span><span>★</span><span>★</span><span>★</span>
+                  </div>
+                  <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                    Google Review
+                  </span>
+                </div>
+                <div>
+                  <h4 className="font-display font-medium text-base text-[var(--text)]">
+                    Loving the food at {restaurant.name}?
+                  </h4>
+                  <p className="text-xs text-[var(--muted)] mt-1 leading-relaxed">
+                    Leave a quick 5-star rating on Google Maps to help our kitchen grow!
+                  </p>
+                </div>
+                <a
+                  href={restaurant.googleReviewUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-2xl text-xs flex items-center justify-center gap-2 transition-all shadow-md shadow-amber-500/20 active:scale-[0.98]"
+                >
+                  <span>Rate 5 Stars on Google Maps</span>
+                  <ExternalLink size={13} />
+                </a>
+              </div>
+            )}
+
             <button
               onClick={() => {
                 if (slug) localStorage.removeItem(`last_order_${slug}`);
@@ -532,14 +654,14 @@ export default function PublicMenu() {
               </div>
               <div className="divide-y divide-[var(--cream-border)]">
                 {cart.map((item) => (
-                  <div key={item.menuItem.id} className="px-4 py-3 flex justify-between items-center text-sm">
+                  <div key={item.cartId} className="px-4 py-3 flex justify-between items-center text-sm">
                     <div className="flex-1 min-w-0">
                       <span className="font-semibold text-[var(--text)]">{item.quantity}×</span>
                       <span className="ml-1.5 text-[var(--text-mid)] truncate">{item.menuItem.name}</span>
                       {item.notes && <p className="text-xs text-[var(--muted)] mt-0.5 truncate italic">"{item.notes}"</p>}
                     </div>
                     <span className="font-mono font-bold text-[var(--sage)] ml-3 shrink-0">
-                      ₹{(parseFloat(item.menuItem.price) * item.quantity).toFixed(0)}
+                      ₹{((item.unitPrice ?? parseFloat(item.menuItem.price)) * item.quantity).toFixed(0)}
                     </span>
                   </div>
                 ))}
@@ -680,13 +802,13 @@ export default function PublicMenu() {
                     </div>
                     <div className="divide-y divide-[var(--cream-border)]">
                       {cart.map((item) => (
-                        <div key={item.menuItem.id} className="px-4 py-3 flex justify-between items-start text-sm">
+                        <div key={item.cartId} className="px-4 py-3 flex justify-between items-start text-sm">
                           <span className="text-[var(--text-mid)] flex-1 pr-3">
                             <span className="font-semibold">{item.quantity}×</span> {item.menuItem.name}
                             {item.notes && <span className="block text-[11px] text-[var(--muted)] italic mt-0.5">"{item.notes}"</span>}
                           </span>
                           <span className="font-mono font-bold text-[var(--sage)] shrink-0">
-                            ₹{(parseFloat(item.menuItem.price) * item.quantity).toFixed(0)}
+                            ₹{((item.unitPrice ?? parseFloat(item.menuItem.price)) * item.quantity).toFixed(0)}
                           </span>
                         </div>
                       ))}
@@ -889,52 +1011,95 @@ export default function PublicMenu() {
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     {items.map((item) => {
-                      const qty = cart.find((i) => i.menuItem.id === item.id)?.quantity || 0;
+                      const hasVariants = Boolean(item.variants && (Array.isArray(item.variants) ? item.variants.length > 0 : Boolean(item.variants)));
+                      const itemCartItems = cart.filter((i) => i.menuItem.id === item.id);
+                      const qty = itemCartItems.reduce((s, i) => s + i.quantity, 0);
+
                       return (
-                        <div key={item.id} className={`bg-white border border-[var(--cream-border)] rounded-2xl overflow-hidden card-hover ${!item.isAvailable ? 'opacity-60' : ''}`}>
-                          <div className="relative h-32 bg-[var(--cream)] overflow-hidden">
-                            {item.imageUrl ? (
-                              <img
-                                src={getOptimizedImageUrl(item.imageUrl, 350)}
-                                alt={item.name}
-                                loading="lazy"
-                                decoding="async"
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center">
-                                <Utensils size={28} className="text-[var(--cream-border)]" />
+                        <div
+                          key={item.id}
+                          onClick={() => {
+                            if (item.isAvailable && restaurant.isAcceptingOrders !== false && hasVariants) {
+                              handleItemClickOrAdd(item);
+                            }
+                          }}
+                          className={`bg-white border border-[var(--cream-border)] rounded-2xl overflow-hidden card-hover flex flex-col justify-between ${
+                            !item.isAvailable ? 'opacity-60' : hasVariants ? 'cursor-pointer' : ''
+                          }`}
+                        >
+                          <div>
+                            <div className="relative h-32 bg-[var(--cream)] overflow-hidden">
+                              {item.imageUrl ? (
+                                <img
+                                  src={getOptimizedImageUrl(item.imageUrl, 350)}
+                                  alt={item.name}
+                                  loading="lazy"
+                                  decoding="async"
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center">
+                                  <Utensils size={28} className="text-[var(--cream-border)]" />
+                                </div>
+                              )}
+                              <div className={`absolute top-2 left-2 w-4 h-4 rounded-sm border-2 bg-white flex items-center justify-center ${item.isVeg ? 'border-emerald-500' : 'border-red-500'}`}>
+                                <div className={`w-2 h-2 rounded-full ${item.isVeg ? 'bg-emerald-500' : 'bg-red-500'}`} />
                               </div>
-                            )}
-                            <div className={`absolute top-2 left-2 w-4 h-4 rounded-sm border-2 bg-white flex items-center justify-center ${item.isVeg ? 'border-emerald-500' : 'border-red-500'}`}>
-                              <div className={`w-2 h-2 rounded-full ${item.isVeg ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                              {item.badge && (
+                                <span className="absolute top-2 right-2 text-[9px] bg-[var(--sage)] text-white px-1.5 py-0.5 rounded-full font-bold">
+                                  {item.badge === 'bestseller' ? '🔥' : item.badge === 'spicy' ? '🌶️' : item.badge === 'special' ? '⭐' : '🆕'}
+                                </span>
+                              )}
+                              {!item.isAvailable && (
+                                <div className="absolute inset-0 bg-white/80 flex items-center justify-center">
+                                  <span className="text-xs font-bold text-red-600 bg-white px-2 py-1 rounded-lg border border-red-200">Sold Out</span>
+                                </div>
+                              )}
                             </div>
-                            {item.badge && (
-                              <span className="absolute top-2 right-2 text-[9px] bg-[var(--sage)] text-white px-1.5 py-0.5 rounded-full font-bold">
-                                {item.badge === 'bestseller' ? '🔥' : item.badge === 'spicy' ? '🌶️' : item.badge === 'special' ? '⭐' : '🆕'}
-                              </span>
-                            )}
-                            {!item.isAvailable && (
-                              <div className="absolute inset-0 bg-white/80 flex items-center justify-center">
-                                <span className="text-xs font-bold text-red-600 bg-white px-2 py-1 rounded-lg border border-red-200">Sold Out</span>
+                            <div className="p-3 space-y-1.5">
+                              <div className="flex items-start justify-between gap-1">
+                                <h3 className="text-sm font-semibold text-[var(--text)] line-clamp-1 leading-tight">{item.name}</h3>
                               </div>
-                            )}
+                              {item.description && <p className="text-[11px] text-[var(--muted)] line-clamp-2 leading-snug">{item.description}</p>}
+                              {hasVariants && (
+                                <span className="inline-block text-[10px] text-[var(--sage)] font-semibold bg-[var(--sage-light)] px-1.5 py-0.5 rounded-md">
+                                  ✨ Customisable
+                                </span>
+                              )}
+                            </div>
                           </div>
-                          <div className="p-3 space-y-2">
-                            <h3 className="text-sm font-semibold text-[var(--text)] line-clamp-1 leading-tight">{item.name}</h3>
-                            {item.description && <p className="text-[11px] text-[var(--muted)] line-clamp-2 leading-snug">{item.description}</p>}
-                            <div className="flex items-center justify-between pt-0.5">
+
+                          <div className="p-3 pt-0">
+                            <div className="flex items-center justify-between pt-1 border-t border-[var(--cream-border)]/60">
                               <span className="font-mono font-bold text-[var(--sage)] text-sm">₹{parseFloat(item.price).toFixed(0)}</span>
                               {item.isAvailable && restaurant.isAcceptingOrders !== false && (
-                                qty > 0 ? (
+                                hasVariants ? (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleItemClickOrAdd(item);
+                                    }}
+                                    className="px-2.5 py-1 bg-[var(--sage-light)] hover:bg-[var(--sage)] text-[var(--sage)] hover:text-white rounded-xl text-xs font-bold transition-all border border-[var(--sage)]/20 active:scale-95 flex items-center gap-1"
+                                  >
+                                    {qty > 0 && <span className="w-4 h-4 bg-[var(--sage)] text-white rounded-full text-[10px] flex items-center justify-center font-bold mr-0.5">{qty}</span>}
+                                    <span>+ Add</span>
+                                  </button>
+                                ) : qty > 0 ? (
                                   <div className="flex items-center gap-1 bg-[var(--sage)] rounded-xl px-1.5 py-0.5">
-                                    <button onClick={() => updateQty(item.id, -1)} className="p-0.5 text-white"><Minus size={10} /></button>
+                                    <button onClick={(e) => { e.stopPropagation(); updateQty(itemCartItems[0].cartId, -1); }} className="p-0.5 text-white"><Minus size={10} /></button>
                                     <span className="text-xs font-black text-white w-4 text-center">{qty}</span>
-                                    <button onClick={() => updateQty(item.id, 1)} className="p-0.5 text-white"><Plus size={10} /></button>
+                                    <button onClick={(e) => { e.stopPropagation(); updateQty(itemCartItems[0].cartId, 1); }} className="p-0.5 text-white"><Plus size={10} /></button>
                                   </div>
                                 ) : (
-                                  <button onClick={() => addToCart(item)}
-                                    className="w-8 h-8 bg-[var(--sage)] hover:bg-[var(--sage-mid)] text-white rounded-xl flex items-center justify-center transition-all active:scale-90">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      addToCart(item);
+                                    }}
+                                    className="w-8 h-8 bg-[var(--sage)] hover:bg-[var(--sage-mid)] text-white rounded-xl flex items-center justify-center transition-all active:scale-90"
+                                  >
                                     <Plus size={14} />
                                   </button>
                                 )
@@ -1005,37 +1170,31 @@ export default function PublicMenu() {
                     <p className="text-sm text-[var(--muted)]">Your basket is empty</p>
                   </div>
                 ) : cart.map((item) => (
-                  <div key={item.menuItem.id} className="bg-[var(--cream)] border border-[var(--cream-border)] p-4 rounded-2xl space-y-3">
+                  <div key={item.cartId} className="bg-[var(--cream)] border border-[var(--cream-border)] p-4 rounded-2xl space-y-3">
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex-1 min-w-0">
                         <h4 className="font-semibold text-[var(--text)] text-sm truncate">{item.menuItem.name}</h4>
-                        <p className="text-xs font-mono text-[var(--sage)] font-bold mt-0.5">₹{parseFloat(item.menuItem.price).toFixed(0)}</p>
+                        <p className="text-xs font-mono text-[var(--sage)] font-bold mt-0.5">
+                          ₹{((item.unitPrice ?? parseFloat(item.menuItem.price)) * item.quantity).toFixed(0)}
+                          {item.quantity > 1 && <span className="text-[10px] text-[var(--muted)] font-normal ml-1">(₹{(item.unitPrice ?? parseFloat(item.menuItem.price)).toFixed(0)} each)</span>}
+                        </p>
                       </div>
                       <div className="flex items-center gap-2 bg-white border border-[var(--cream-border)] rounded-xl px-2 py-1 shrink-0">
-                        <button onClick={() => updateQty(item.menuItem.id, -1)} className="p-1 text-[var(--muted)] hover:text-[var(--text)]"><Minus size={12} /></button>
+                        <button onClick={() => updateQty(item.cartId, -1)} className="p-1 text-[var(--muted)] hover:text-[var(--text)]"><Minus size={12} /></button>
                         <span className="text-sm font-bold text-[var(--text)] w-5 text-center">{item.quantity}</span>
-                        <button onClick={() => updateQty(item.menuItem.id, 1)} className="p-1 text-[var(--muted)] hover:text-[var(--text)]"><Plus size={12} /></button>
+                        <button onClick={() => updateQty(item.cartId, 1)} className="p-1 text-[var(--muted)] hover:text-[var(--text)]"><Plus size={12} /></button>
                       </div>
                     </div>
+                    {item.notes && (
+                      <p className="text-xs text-[var(--sage)] bg-[var(--sage-light)] px-3 py-1.5 rounded-xl font-medium">
+                        {item.notes}
+                      </p>
+                    )}
                     <input
-                      type="text" value={item.notes} onChange={(e) => updateNotes(item.menuItem.id, e.target.value)}
+                      type="text" value={item.notes} onChange={(e) => updateNotes(item.cartId, e.target.value)}
                       placeholder="Special instructions (e.g. no spice, extra sauce)…"
                       className="w-full bg-white border border-[var(--cream-border)] rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--sage)] text-[var(--text)] placeholder-[var(--muted)]"
                     />
-                    <div className="flex flex-wrap gap-1.5">
-                      {['🌶️ Extra Spicy', '🚫 No Onion', '🧀 Extra Cheese', '🧊 Less Ice', '📦 Pack Separately'].map((chip) => (
-                        <button key={chip} type="button"
-                          onClick={() => {
-                            const cur = item.notes.trim();
-                            updateNotes(item.menuItem.id, cur.includes(chip) ? cur.replace(chip, '').replace(/^,\s*|,\s*$/g, '').trim() : cur ? `${cur}, ${chip}` : chip);
-                          }}
-                          className={`text-[10px] px-2 py-0.5 rounded-lg border transition-all ${
-                            item.notes?.includes(chip) ? 'bg-[var(--sage)] text-white border-[var(--sage)] font-bold' : 'bg-white text-[var(--muted)] border-[var(--cream-border)]'
-                          }`}>
-                          {chip}
-                        </button>
-                      ))}
-                    </div>
                   </div>
                 ))}
               </div>
@@ -1054,6 +1213,144 @@ export default function PublicMenu() {
                   </button>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* ── Customization / Modifiers Bottom Sheet Modal ── */}
+        {customizingItem && (
+          <div className="fixed inset-0 z-50 flex justify-center items-end bg-black/60 backdrop-blur-sm animate-fade-in">
+            <div className="w-full max-w-md bg-white rounded-t-3xl flex flex-col overflow-hidden max-h-[85vh] shadow-2xl">
+              {/* Handle bar */}
+              <div className="pt-3 pb-1 flex justify-center shrink-0">
+                <div className="w-10 h-1 bg-[var(--cream-border)] rounded-full" />
+              </div>
+
+              {/* Header */}
+              <div className="px-5 py-3.5 border-b border-[var(--cream-border)] flex items-start justify-between shrink-0 bg-white">
+                <div>
+                  <h3 className="font-semibold text-[var(--text)] text-base leading-tight">{customizingItem.name}</h3>
+                  <p className="text-xs font-mono font-bold text-[var(--sage)] mt-0.5">Base price: ₹{parseFloat(customizingItem.price).toFixed(0)}</p>
+                </div>
+                <button
+                  onClick={() => setCustomizingItem(null)}
+                  className="p-1.5 rounded-xl hover:bg-[var(--cream)] text-[var(--muted)] hover:text-[var(--text)] transition-all"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Groups scroll area */}
+              <div className="flex-1 overflow-y-auto p-5 space-y-5">
+                {Array.isArray(customizingItem.variants) && (customizingItem.variants as VariantGroup[]).map((group, gIdx) => {
+                  const isRequired = Boolean(group.required || group.name.toLowerCase().includes('size') || group.name.toLowerCase().includes('portion'));
+                  const currentSelected = selectedOptions[group.name] || [];
+
+                  return (
+                    <div key={gIdx} className="space-y-3 bg-[var(--cream)] border border-[var(--cream-border)] rounded-2xl p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="font-bold text-xs text-[var(--text)] uppercase tracking-wider">{group.name}</h4>
+                          <p className="text-[10px] text-[var(--muted)]">
+                            {isRequired ? 'Choose 1 option (Required)' : 'Optional add-ons'}
+                          </p>
+                        </div>
+                        {isRequired && (
+                          <span className="text-[10px] font-bold bg-[var(--sage-light)] text-[var(--sage)] px-2 py-0.5 rounded-md">
+                            Required
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                        {group.options.map((opt, oIdx) => {
+                          const isChecked = currentSelected.some((o) => o.name === opt.name);
+
+                          return (
+                            <button
+                              key={oIdx}
+                              type="button"
+                              onClick={() => {
+                                if (isRequired) {
+                                  // Radio behavior (1 selection)
+                                  setSelectedOptions((prev) => ({
+                                    ...prev,
+                                    [group.name]: [opt]
+                                  }));
+                                } else {
+                                  // Checkbox toggle behavior
+                                  setSelectedOptions((prev) => {
+                                    const prevList = prev[group.name] || [];
+                                    const exists = prevList.some((o) => o.name === opt.name);
+                                    const nextList = exists
+                                      ? prevList.filter((o) => o.name !== opt.name)
+                                      : [...prevList, opt];
+                                    return { ...prev, [group.name]: nextList };
+                                  });
+                                }
+                              }}
+                              className={`w-full flex items-center justify-between p-3 rounded-xl border text-xs font-semibold transition-all ${
+                                isChecked
+                                  ? 'bg-white border-[var(--sage)] text-[var(--text)] shadow-xs'
+                                  : 'bg-white/60 border-[var(--cream-border)] text-[var(--muted)] hover:border-[var(--cream-dark)]'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2.5">
+                                <div className={`w-4 h-4 rounded-${isRequired ? 'full' : 'md'} border flex items-center justify-center transition-all ${
+                                  isChecked ? 'border-[var(--sage)] bg-[var(--sage)] text-white' : 'border-[var(--cream-border)] bg-white'
+                                }`}>
+                                  {isChecked && <Check size={11} strokeWidth={3} />}
+                                </div>
+                                <span className={isChecked ? 'text-[var(--text)] font-bold' : ''}>{opt.name}</span>
+                              </div>
+                              <span className="font-mono text-[var(--sage)] font-bold">
+                                {opt.price > 0 ? `+₹${opt.price}` : 'Free'}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* Special instructions note */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-[var(--muted)] uppercase tracking-wider block">Special Instructions</label>
+                  <textarea
+                    rows={2}
+                    value={customNotes}
+                    onChange={(e) => setCustomNotes(e.target.value)}
+                    placeholder="e.g. Less spicy, dressing on the side, no ice…"
+                    className="w-full bg-[var(--cream)] border border-[var(--cream-border)] rounded-2xl p-3 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--sage)] text-[var(--text)] placeholder-[var(--muted)] resize-none"
+                  />
+                </div>
+              </div>
+
+              {/* Bottom confirmation action */}
+              {(() => {
+                const base = parseFloat(customizingItem.price);
+                const addonSum = Array.isArray(customizingItem.variants)
+                  ? (customizingItem.variants as VariantGroup[]).reduce((total, group) => {
+                      const selected = selectedOptions[group.name] || [];
+                      return total + selected.reduce((s, o) => s + (Number(o.price) || 0), 0);
+                    }, 0)
+                  : 0;
+                const totalItemPrice = base + addonSum;
+
+                return (
+                  <div className="p-4 border-t border-[var(--cream-border)] bg-white shrink-0">
+                    <button
+                      type="button"
+                      onClick={handleConfirmCustomization}
+                      className="w-full py-4 bg-[var(--sage)] hover:bg-[var(--sage-mid)] text-white font-bold rounded-2xl text-sm flex items-center justify-between px-5 shadow-lg shadow-[var(--sage)]/20 transition-all active:scale-[0.98]"
+                    >
+                      <span>Add to Basket</span>
+                      <span className="font-mono font-black">₹{totalItemPrice.toFixed(0)}</span>
+                    </button>
+                  </div>
+                );
+              })()}
             </div>
           </div>
         )}

@@ -42,6 +42,7 @@ export default function Dashboard() {
   const [restContact, setRestContact] = useState(restaurant?.contactNumber || '');
   const [restUpiId, setRestUpiId] = useState(restaurant?.upiId || '');
   const [restUpiPayeeName, setRestUpiPayeeName] = useState(restaurant?.upiPayeeName || '');
+  const [restGoogleReviewUrl, setRestGoogleReviewUrl] = useState(restaurant?.googleReviewUrl || '');
   const [restLogo, setRestLogo] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(restaurant?.logoUrl ? (restaurant.logoUrl.startsWith('http') ? restaurant.logoUrl : `${API_BASE_URL}${restaurant.logoUrl}`) : null);
   const [restUpiQrImage, setRestUpiQrImage] = useState<File | null>(null);
@@ -89,6 +90,7 @@ export default function Dashboard() {
           setRestContact(rest.contactNumber || '');
           setRestUpiId(rest.upiId || '');
           setRestUpiPayeeName(rest.upiPayeeName || '');
+          setRestGoogleReviewUrl(rest.googleReviewUrl || '');
           if (rest.logoUrl) setLogoPreview(rest.logoUrl.startsWith('http') ? rest.logoUrl : `${API_BASE_URL}${rest.logoUrl}`);
           if (rest.upiQrImageUrl) setUpiQrPreview(rest.upiQrImageUrl.startsWith('http') ? rest.upiQrImageUrl : `${API_BASE_URL}${rest.upiQrImageUrl}`);
         }
@@ -112,6 +114,7 @@ export default function Dashboard() {
           setRestContact(rest.contactNumber || '');
           setRestUpiId(rest.upiId || '');
           setRestUpiPayeeName(rest.upiPayeeName || '');
+          setRestGoogleReviewUrl(rest.googleReviewUrl || '');
           if (rest.upiQrImageUrl) setUpiQrPreview(rest.upiQrImageUrl.startsWith('http') ? rest.upiQrImageUrl : `${API_BASE_URL}${rest.upiQrImageUrl}`);
         }
       }
@@ -259,6 +262,7 @@ export default function Dashboard() {
     formData.append('contactNumber', restContact);
     formData.append('upiId', cleanedUpiId);
     formData.append('upiPayeeName', restUpiPayeeName.trim());
+    formData.append('googleReviewUrl', restGoogleReviewUrl.trim());
     if (restLogo) formData.append('logo', restLogo);
     if (restUpiQrImage) formData.append('upiQrCode', restUpiQrImage);
     try {
@@ -682,6 +686,17 @@ export default function Dashboard() {
                             className="w-full px-4 py-2.5 bg-[var(--cream)] border border-[var(--cream-border)] rounded-xl text-[var(--text)] focus:outline-none focus:ring-2 focus:ring-[var(--sage)] text-sm" placeholder="123 Main Street, City" />
                         </div>
 
+                        <div className="md:col-span-2">
+                          <label className="block text-xs font-semibold text-[var(--muted)] uppercase tracking-wider mb-1.5">
+                            Google Maps Review Link <span className="text-amber-600 font-bold">★ 5-Star Booster</span>
+                          </label>
+                          <input type="url" value={restGoogleReviewUrl} onChange={(e) => setRestGoogleReviewUrl(e.target.value)}
+                            className="w-full px-4 py-2.5 bg-[var(--cream)] border border-[var(--cream-border)] rounded-xl text-[var(--text)] focus:outline-none focus:ring-2 focus:ring-[var(--sage)] text-sm" placeholder="https://g.page/r/your-cafe-place-id/review" />
+                          <p className="text-[10px] text-[var(--muted)] mt-1.5 leading-relaxed">
+                            🌟 When customer orders are completed, an automatic 5-star Google Review prompt will encourage happy customers to rate your cafe on Google Maps!
+                          </p>
+                        </div>
+
                         {/* UPI Section */}
                         <div className="md:col-span-2 bg-[var(--sage-light)] rounded-2xl p-4 space-y-4">
                           <p className="text-xs font-bold text-[var(--sage)] uppercase tracking-wider">UPI Payment Settings</p>
@@ -743,6 +758,7 @@ export default function Dashboard() {
                           setRestContact(restaurant.contactNumber || '');
                           setRestUpiId(restaurant.upiId || '');
                           setRestUpiPayeeName(restaurant.upiPayeeName || '');
+                          setRestGoogleReviewUrl(restaurant.googleReviewUrl || '');
                         }}
                           className="px-5 py-2.5 border border-[var(--cream-border)] text-[var(--muted)] rounded-xl text-sm font-semibold hover:bg-[var(--cream)] transition-all">
                           Cancel
@@ -757,7 +773,7 @@ export default function Dashboard() {
                           : <Store size={30} className="text-[var(--muted)]" />
                         }
                       </div>
-                      <div className="flex-1 space-y-1">
+                      <div className="flex-1 space-y-1.5">
                         <h3 className="text-2xl font-display font-medium text-[var(--text)]">{restaurant.name}</h3>
                         <p className="text-sm text-[var(--muted)]">{restaurant.address || 'No address set'}</p>
                         <div className="flex items-center gap-1.5 mt-1">
@@ -768,6 +784,12 @@ export default function Dashboard() {
                               : 'No invoice number set — add one so customers get order receipts'}
                           </span>
                         </div>
+                        {restaurant.googleReviewUrl && (
+                          <div className="flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1 rounded-full w-fit">
+                            <span>⭐</span>
+                            <span className="font-semibold">Google Review Booster Active</span>
+                          </div>
+                        )}
                       </div>
                       <div className="bg-[var(--sage-light)] border border-[var(--sage)]/20 p-3.5 rounded-2xl min-w-[160px] text-xs space-y-1">
                         <p className="text-[10px] font-bold text-[var(--sage)] uppercase tracking-wider">UPI Status</p>

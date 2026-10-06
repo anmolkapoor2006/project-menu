@@ -19,6 +19,7 @@ const updateRestaurantSchema = z.object({
   contactNumber: z.string().optional().nullable(),
   upiId: z.string().optional().nullable(),
   upiPayeeName: z.string().optional().nullable(),
+  googleReviewUrl: z.string().optional().nullable(),
   isActive: z.preprocess(booleanPreprocess, z.boolean().optional()),
   isAcceptingOrders: z.preprocess(booleanPreprocess, z.boolean().optional()),
 });
@@ -59,6 +60,7 @@ export async function updateRestaurant(req: AuthenticatedRequest, res: Response)
     if (body.contactNumber !== undefined) updateData.contactNumber = body.contactNumber;
     if (body.upiId !== undefined) updateData.upiId = body.upiId ? body.upiId.trim() : null;
     if (body.upiPayeeName !== undefined) updateData.upiPayeeName = body.upiPayeeName ? body.upiPayeeName.trim() : null;
+    if (body.googleReviewUrl !== undefined) updateData.googleReviewUrl = body.googleReviewUrl ? body.googleReviewUrl.trim() : null;
     if (body.isActive !== undefined) updateData.isActive = body.isActive;
     if (body.isAcceptingOrders !== undefined) updateData.isAcceptingOrders = body.isAcceptingOrders;
     if (logoUrl) updateData.logoUrl = logoUrl;

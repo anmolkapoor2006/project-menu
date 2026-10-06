@@ -5,10 +5,18 @@ import { AuthenticatedRequest } from '../middleware/auth.middleware';
 import { getIO } from '../io';
 import { z } from 'zod';
 
+const selectedVariantSchema = z.object({
+  groupName: z.string().optional(),
+  optionName: z.string(),
+  price: z.preprocess((val) => Number(val), z.number()).optional().default(0),
+});
+
 const orderItemInputSchema = z.object({
   menuItemId: z.string().min(1, 'Menu item ID is required'),
   quantity: z.preprocess((val) => Number(val), z.number().int().positive('Quantity must be at least 1')),
   notes: z.string().optional().nullable(),
+  unitPrice: z.preprocess((val) => (val !== undefined && val !== null ? Number(val) : undefined), z.number().optional()).nullable(),
+  selectedVariants: z.array(selectedVariantSchema).optional().nullable(),
 });
 
 const placeOrderSchema = z.object({
@@ -76,11 +84,19 @@ export async function placeOrder(req: Request, res: Response) {
 
       const orderItemsData = body.items.map((itemInput) => {
         const menuItem = dbItemsMap.get(itemInput.menuItemId)!;
+        let finalUnitPrice = parseFloat(menuItem.price.toString());
+        if (itemInput.selectedVariants && itemInput.selectedVariants.length > 0) {
+          const added = itemInput.selectedVariants.reduce((sum, v) => sum + (Number(v.price) || 0), 0);
+          finalUnitPrice += added;
+        } else if (itemInput.unitPrice !== undefined && itemInput.unitPrice !== null && !isNaN(Number(itemInput.unitPrice))) {
+          finalUnitPrice = Number(itemInput.unitPrice);
+        }
+
         return {
           orderId: order.id,
           menuItemId: itemInput.menuItemId,
           quantity: itemInput.quantity,
-          priceAtOrder: menuItem.price,
+          priceAtOrder: finalUnitPrice,
           notes: itemInput.notes || null,
         };
       });

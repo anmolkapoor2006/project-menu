@@ -5,11 +5,12 @@ import { Loader2, Eye, EyeOff } from 'lucide-react';
 import { usePageMetadata } from '../utils/usePageMetadata';
 
 export default function Login() {
-  usePageMetadata('Sign In | QR Digital Menu', 'default');
+  usePageMetadata('MenuQR — Café Owner Sign In', 'default');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [isAdminAttempt, setIsAdminAttempt] = useState(false);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
@@ -17,11 +18,18 @@ export default function Login() {
     const token = localStorage.getItem('token');
     const userJson = localStorage.getItem('user');
     if (token && userJson) {
-      const user = JSON.parse(userJson);
-      if (user.role === 'SUPER_ADMIN') {
-        navigate('/admin/dashboard', { replace: true });
-      } else {
-        navigate('/dashboard', { replace: true });
+      try {
+        const user = JSON.parse(userJson);
+        if (user.role === 'RESTAURANT_ADMIN') {
+          navigate('/dashboard', { replace: true });
+        } else if (user.role === 'SUPER_ADMIN') {
+          // If super admin was mistakenly stored in cafe session, clean it
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+        }
+      } catch {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
       }
     }
   }, [navigate]);
@@ -29,10 +37,21 @@ export default function Login() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setIsAdminAttempt(false);
     setLoading(true);
     try {
       const response = await api.post('/api/auth/login', { email, password });
       const { token, user, restaurant } = response.data;
+
+      // STRICT CHECK: Block Super Admin from logging in through the cafe portal
+      if (user.role === 'SUPER_ADMIN') {
+        setIsAdminAttempt(true);
+        setError('Super Admin account detected. For isolation and security, please sign in via the Super Admin Portal.');
+        setLoading(false);
+        return;
+      }
+
+      // Store cafe owner session
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(user));
       if (restaurant) {
@@ -40,11 +59,8 @@ export default function Login() {
       } else {
         localStorage.removeItem('restaurant');
       }
-      if (user.role === 'SUPER_ADMIN') {
-        navigate('/admin/dashboard');
-      } else {
-        navigate('/dashboard');
-      }
+
+      navigate('/dashboard');
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to login. Please try again.');
     } finally {
@@ -92,14 +108,32 @@ export default function Login() {
           </div>
 
           <div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[var(--sage-light)] text-[var(--sage)] text-xs font-semibold uppercase tracking-wider mb-2">
+              <span>☕</span>
+              <span>Café Owner Portal</span>
+            </div>
             <h2 className="font-display text-3xl text-[var(--text)] font-medium">Welcome back</h2>
-            <p className="text-[var(--muted)] text-sm mt-1">Sign in to manage your cafe</p>
+            <p className="text-[var(--muted)] text-sm mt-1">Sign in to manage your café menu and orders</p>
           </div>
 
           {error && (
-            <div className="bg-[var(--red-light)] border border-red-200 text-[var(--red-soft)] text-sm p-4 rounded-2xl flex items-start gap-2">
-              <span className="mt-0.5">⚠️</span>
-              <span>{error}</span>
+            <div className="bg-[var(--red-light)] border border-red-200 text-[var(--red-soft)] text-sm p-4 rounded-2xl space-y-2.5">
+              <div className="flex items-start gap-2">
+                <span className="mt-0.5">⚠️</span>
+                <span className="font-medium">{error}</span>
+              </div>
+              {isAdminAttempt && (
+                <div className="pt-2 border-t border-red-200/60 flex items-center justify-between">
+                  <span className="text-xs text-red-700">Go to dedicated Admin Portal:</span>
+                  <Link
+                    to="/admin/login"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#1a1f2e] text-white text-xs font-semibold rounded-xl hover:bg-[#2a324b] transition-all shadow-sm"
+                  >
+                    <span>Admin Login</span>
+                    <span>→</span>
+                  </Link>
+                </div>
+              )}
             </div>
           )}
 
@@ -157,6 +191,13 @@ export default function Login() {
             New to MenuQR?{' '}
             <Link to="/signup" className="font-semibold text-[var(--sage)] hover:underline">
               Register your cafe
+            </Link>
+          </p>
+
+          <p className="text-center text-xs text-[var(--muted)]/60">
+            Super Admin?{' '}
+            <Link to="/admin/login" className="font-medium text-indigo-500 hover:underline">
+              Go to Admin Portal →
             </Link>
           </p>
         </div>

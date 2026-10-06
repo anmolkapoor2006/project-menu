@@ -58,7 +58,7 @@ export default function PublicMenu() {
   const [loading, setLoading] = useState(!cachedInit);
   const [error, setError] = useState('');
 
-  usePageMetadata(restaurant?.name ? `${restaurant.name} | Menu` : 'Digital Menu', 'spoon');
+  usePageMetadata(restaurant?.name ? `${restaurant.name} — Menu` : 'MenuQR — Digital Menu', 'spoon');
   const [logoError, setLogoError] = useState(false);
 
   const [view, setView] = useState<View>('menu');

@@ -1,9 +1,11 @@
 import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute';
+import AdminProtectedRoute from './components/AdminProtectedRoute';
 
 // Route-level code splitting
 const Login = lazy(() => import('./pages/Login'));
+const AdminLogin = lazy(() => import('./pages/AdminLogin'));
 const Signup = lazy(() => import('./pages/Signup'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
@@ -26,9 +28,11 @@ export default function App() {
       <Suspense fallback={<PageFallback />}>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/admin/login" element={<AdminLogin />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/menu/:slug" element={<PublicMenu />} />
           
+          {/* Cafe owner dashboard — protected by regular token/user */}
           <Route 
             path="/dashboard" 
             element={
@@ -38,16 +42,17 @@ export default function App() {
             } 
           />
           
+          {/* Admin dashboard — protected by adminToken/adminUser (separate session) */}
           <Route 
             path="/admin/dashboard" 
             element={
-              <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
+              <AdminProtectedRoute>
                 <AdminDashboard />
-              </ProtectedRoute>
+              </AdminProtectedRoute>
             } 
           />
           
-          {/* Redirect empty paths to login */}
+          {/* Redirect empty paths to cafe login */}
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </Suspense>

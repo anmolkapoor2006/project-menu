@@ -10,7 +10,11 @@ const api = axios.create({
 
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token');
+    // Use separate adminToken for admin routes to avoid session collision
+    const isAdminRoute = window.location.pathname.startsWith('/admin') || (config.url ? config.url.startsWith('/api/admin') : false);
+    const token = isAdminRoute
+      ? (localStorage.getItem('adminToken') || localStorage.getItem('token'))
+      : localStorage.getItem('token');
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -33,8 +37,13 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401 && !window.location.pathname.startsWith('/menu/')) {
-      // Only clear and redirect if we're in the admin/dashboard portal, not customer menu
-      if (window.location.pathname.startsWith('/dashboard') || window.location.pathname.startsWith('/admin')) {
+      if (window.location.pathname.startsWith('/admin')) {
+        // Admin session expired — clear only admin keys and redirect to admin login
+        localStorage.removeItem('adminToken');
+        localStorage.removeItem('adminUser');
+        window.location.href = '/admin/login';
+      } else if (window.location.pathname.startsWith('/dashboard')) {
+        // Cafe owner session expired — clear only cafe keys
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         localStorage.removeItem('restaurant');

@@ -5,7 +5,7 @@ import { Loader2, Eye, EyeOff } from 'lucide-react';
 import { usePageMetadata } from '../utils/usePageMetadata';
 
 export default function Signup() {
-  usePageMetadata('Create Account | QR Digital Menu', 'default');
+  usePageMetadata('MenuQR — Register Your Café', 'default');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

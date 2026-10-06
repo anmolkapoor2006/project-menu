@@ -34,7 +34,7 @@ export default function Dashboard() {
   });
   const [announcement, setAnnouncement] = useState<any>(null);
 
-  usePageMetadata(restaurant?.name ? `${restaurant.name} | Cafe Owner` : 'Cafe Owner | Dashboard', 'chef');
+  usePageMetadata(restaurant?.name ? `${restaurant.name} — MenuQR Dashboard` : 'MenuQR — Café Dashboard', 'chef');
 
   const [editingProfile, setEditingProfile] = useState(false);
   const [restName, setRestName] = useState(restaurant?.name || '');
@@ -668,9 +668,10 @@ export default function Dashboard() {
                             className="w-full px-4 py-2.5 bg-[var(--cream)] border border-[var(--cream-border)] rounded-xl text-[var(--text)] focus:outline-none focus:ring-2 focus:ring-[var(--sage)] text-sm" />
                         </div>
                         <div>
-                          <label className="block text-xs font-semibold text-[var(--muted)] uppercase tracking-wider mb-1.5">Contact Number</label>
-                          <input type="text" value={restContact} onChange={(e) => setRestContact(e.target.value)}
-                            className="w-full px-4 py-2.5 bg-[var(--cream)] border border-[var(--cream-border)] rounded-xl text-[var(--text)] focus:outline-none focus:ring-2 focus:ring-[var(--sage)] text-sm" placeholder="1234567890" />
+                          <label className="block text-xs font-semibold text-[var(--muted)] uppercase tracking-wider mb-1.5">Invoice / WhatsApp Number</label>
+                          <input type="tel" value={restContact} onChange={(e) => setRestContact(e.target.value)}
+                            className="w-full px-4 py-2.5 bg-[var(--cream)] border border-[var(--cream-border)] rounded-xl text-[var(--text)] focus:outline-none focus:ring-2 focus:ring-[var(--sage)] text-sm" placeholder="+91 98765 43210" />
+                          <p className="text-[10px] text-[var(--muted)] mt-1.5 leading-relaxed">📱 Customers receive their order invoice from this number after checkout.</p>
                         </div>
                         <div className="md:col-span-2">
                           <label className="block text-xs font-semibold text-[var(--muted)] uppercase tracking-wider mb-1.5">Address</label>
@@ -756,7 +757,14 @@ export default function Dashboard() {
                       <div className="flex-1 space-y-1">
                         <h3 className="text-2xl font-display font-medium text-[var(--text)]">{restaurant.name}</h3>
                         <p className="text-sm text-[var(--muted)]">{restaurant.address || 'No address set'}</p>
-                        <p className="text-xs text-[var(--muted)]">📞 {restaurant.contactNumber || 'No contact'}</p>
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <span className="text-xs text-[var(--muted)]">📱</span>
+                          <span className="text-xs text-[var(--muted)]">
+                            {restaurant.contactNumber
+                              ? <><span className="font-semibold text-[var(--text)]">{restaurant.contactNumber}</span> <span className="text-[var(--muted)]/60">(Invoice / WhatsApp)</span></>
+                              : 'No invoice number set — add one so customers get order receipts'}
+                          </span>
+                        </div>
                       </div>
                       <div className="bg-[var(--sage-light)] border border-[var(--sage)]/20 p-3.5 rounded-2xl min-w-[160px] text-xs space-y-1">
                         <p className="text-[10px] font-bold text-[var(--sage)] uppercase tracking-wider">UPI Status</p>

@@ -3,9 +3,13 @@ import { Navigate } from 'react-router-dom';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  allowedRoles?: ('SUPER_ADMIN' | 'RESTAURANT_ADMIN')[];
+  allowedRoles?: ('RESTAURANT_ADMIN')[];
 }
 
+/**
+ * Guards the cafe owner routes (/dashboard) using regular token & user keys.
+ * If a super admin accesses this route, it prevents session collision.
+ */
 export default function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
   const token = localStorage.getItem('token');
   const userJson = localStorage.getItem('user');
@@ -14,14 +18,16 @@ export default function ProtectedRoute({ children, allowedRoles }: ProtectedRout
     return <Navigate to="/login" replace />;
   }
 
-  const user = JSON.parse(userJson);
+  try {
+    const user = JSON.parse(userJson);
 
-  if (allowedRoles && !allowedRoles.includes(user.role)) {
-    if (user.role === 'SUPER_ADMIN') {
-      return <Navigate to="/admin/dashboard" replace />;
-    } else {
-      return <Navigate to="/dashboard" replace />;
+    if (allowedRoles && !allowedRoles.includes(user.role)) {
+      return <Navigate to="/login" replace />;
     }
+  } catch {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    return <Navigate to="/login" replace />;
   }
 
   return <>{children}</>;

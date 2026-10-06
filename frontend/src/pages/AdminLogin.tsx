@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import api from '../api/api';
 import { Loader2, Eye, EyeOff, ShieldCheck, ArrowRight } from 'lucide-react';
 import { usePageMetadata } from '../utils/usePageMetadata';
 
 export default function AdminLogin() {
-  usePageMetadata('MenuQR — Admin Portal', 'admin');
+  usePageMetadata('MenuQR — Admin Sign In', 'default');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -42,18 +42,18 @@ export default function AdminLogin() {
       // Reject non-admin users
       if (user.role !== 'SUPER_ADMIN') {
         setIsCafeAttempt(true);
-        setError('Access denied. This page is for Super Admins only.');
+        setError('Access denied. This login page is reserved for Super Admins only.');
         setLoading(false);
         return;
       }
 
-      // Store in separate admin keys
+      // Store in isolated admin keys
       localStorage.setItem('adminToken', token);
       localStorage.setItem('adminUser', JSON.stringify(user));
 
       navigate('/admin/dashboard');
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to sign in. Please check your admin credentials.');
+      setError(err.response?.data?.error || 'Failed to login. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -61,40 +61,37 @@ export default function AdminLogin() {
 
   return (
     <div className="min-h-screen flex bg-[var(--cream)]">
-      {/* Left Panel — Brand */}
-      <div className="hidden lg:flex lg:w-1/2 bg-[#1a1f2e] flex-col justify-between p-12 relative overflow-hidden">
+      {/* Left Panel — Brand (Identical warm sage theme) */}
+      <div className="hidden lg:flex lg:w-1/2 bg-[var(--sage)] flex-col justify-between p-12 relative overflow-hidden">
         {/* Decorative circles */}
         <div className="absolute -top-24 -right-24 w-72 h-72 rounded-full bg-white/5" />
         <div className="absolute -bottom-32 -left-16 w-96 h-96 rounded-full bg-white/5" />
         <div className="absolute top-1/2 right-8 w-48 h-48 rounded-full bg-white/5" />
 
-        <div className="relative z-10 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center">
-            <ShieldCheck size={20} className="text-white" />
+        <div className="relative z-10">
+          <div className="flex items-center gap-2.5">
+            <h1 className="font-display text-4xl text-white font-medium italic">MenuQR</h1>
+            <span className="bg-white/20 text-white text-xs px-2.5 py-0.5 rounded-full font-semibold uppercase tracking-wider">
+              Admin
+            </span>
           </div>
-          <div>
-            <h1 className="font-display text-2xl text-white font-medium italic">MenuQR</h1>
-            <p className="text-white/60 text-xs tracking-wider uppercase">Super Admin Portal</p>
-          </div>
+          <p className="text-[var(--sage-muted)] text-sm mt-1 tracking-wider uppercase">Super Admin Console</p>
         </div>
 
-        <div className="relative z-10 space-y-4">
+        <div className="relative z-10 space-y-8">
           <blockquote className="text-white/90 font-display text-3xl font-light leading-snug italic">
-            "Platform analytics, café accounts, and central management in one place."
+            "Platform-wide visibility, multi-tenant café management, and telemetry."
           </blockquote>
-          <p className="text-white/60 text-sm">
-            Separate admin gateway designed to prevent session conflicts with café owner accounts.
-          </p>
         </div>
 
-        <div className="relative z-10 flex gap-6 text-white/40 text-xs">
-          <span>Super Admin</span>
+        <div className="relative z-10 flex gap-6 text-white/50 text-xs">
+          <span>All Cafes</span>
           <span>·</span>
-          <span>Multi-Tenant</span>
-          <span>·</span>
-          <span>Telemetry</span>
+          <span>Platform Analytics</span>
           <span>·</span>
           <span>Announcements</span>
+          <span>·</span>
+          <span>Revenue</span>
         </div>
       </div>
 
@@ -108,12 +105,12 @@ export default function AdminLogin() {
           </div>
 
           <div>
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-200 text-slate-700 text-xs font-semibold uppercase tracking-wider mb-2">
-              <ShieldCheck size={13} />
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[var(--sage-light)] text-[var(--sage)] text-xs font-semibold uppercase tracking-wider mb-2">
+              <ShieldCheck size={14} />
               <span>Super Admin Portal</span>
             </div>
             <h2 className="font-display text-3xl text-[var(--text)] font-medium">Admin Sign In</h2>
-            <p className="text-[var(--muted)] text-sm mt-1">Sign in to access the platform console</p>
+            <p className="text-[var(--muted)] text-sm mt-1">Sign in with your administrator credentials</p>
           </div>
 
           {error && (
@@ -143,12 +140,12 @@ export default function AdminLogin() {
                 Admin Email
               </label>
               <input
-                id="admin-email"
+                id="admin-email-address"
                 type="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-3.5 bg-white border border-[var(--cream-border)] rounded-2xl text-[var(--text)] placeholder-[var(--muted-light)] focus:outline-none focus:ring-2 focus:ring-slate-700 focus:border-transparent text-sm transition-all"
+                className="w-full px-4 py-3.5 bg-white border border-[var(--cream-border)] rounded-2xl text-[var(--text)] placeholder-[var(--muted-light)] focus:outline-none focus:ring-2 focus:ring-[var(--sage)] focus:border-transparent text-sm transition-all"
                 placeholder="admin@menuqr.com"
               />
             </div>
@@ -159,12 +156,12 @@ export default function AdminLogin() {
               </label>
               <div className="relative">
                 <input
-                  id="admin-password"
+                  id="admin-password-input"
                   type={showPassword ? 'text' : 'password'}
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-4 py-3.5 pr-12 bg-white border border-[var(--cream-border)] rounded-2xl text-[var(--text)] placeholder-[var(--muted-light)] focus:outline-none focus:ring-2 focus:ring-slate-700 focus:border-transparent text-sm transition-all"
+                  className="w-full px-4 py-3.5 pr-12 bg-white border border-[var(--cream-border)] rounded-2xl text-[var(--text)] placeholder-[var(--muted-light)] focus:outline-none focus:ring-2 focus:ring-[var(--sage)] focus:border-transparent text-sm transition-all"
                   placeholder="••••••••"
                 />
                 <button
@@ -180,7 +177,7 @@ export default function AdminLogin() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-4 bg-[#1a1f2e] hover:bg-[#2a324b] disabled:opacity-60 text-white font-semibold rounded-2xl text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-slate-900/10 active:scale-[0.98]"
+              className="w-full py-4 bg-[var(--sage)] hover:bg-[var(--sage-mid)] disabled:opacity-60 text-white font-semibold rounded-2xl text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-[var(--sage)]/20 active:scale-[0.98]"
             >
               {loading && <Loader2 className="animate-spin" size={16} />}
               {loading ? 'Signing in…' : 'Access Admin Console'}

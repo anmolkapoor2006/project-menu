@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import api from '../api/api';
-import { Loader2, Eye, EyeOff, ShieldCheck, Lock, ArrowRight, ShieldAlert, CheckCircle2 } from 'lucide-react';
+import { Loader2, Eye, EyeOff, ShieldCheck, ArrowRight } from 'lucide-react';
 import { usePageMetadata } from '../utils/usePageMetadata';
 
 export default function AdminLogin() {
-  usePageMetadata('MenuQR — Super Admin Sign In', 'admin');
+  usePageMetadata('MenuQR — Admin Portal', 'admin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -14,7 +14,6 @@ export default function AdminLogin() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  // If admin is already logged in with valid admin keys, redirect straight to admin dashboard
   useEffect(() => {
     const token = localStorage.getItem('adminToken');
     const userJson = localStorage.getItem('adminUser');
@@ -40,133 +39,107 @@ export default function AdminLogin() {
       const response = await api.post('/api/auth/login', { email, password });
       const { token, user } = response.data;
 
-      // STRICT ROLE GATE: Reject Cafe Owners
+      // Reject non-admin users
       if (user.role !== 'SUPER_ADMIN') {
         setIsCafeAttempt(true);
-        setError('Access Denied: Cafe Owner account detected. This portal is strictly restricted to Super Administrators.');
+        setError('Access denied. This page is for Super Admins only.');
         setLoading(false);
         return;
       }
 
-      // Store in ISOLATED admin keys
+      // Store in separate admin keys
       localStorage.setItem('adminToken', token);
       localStorage.setItem('adminUser', JSON.stringify(user));
 
       navigate('/admin/dashboard');
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Invalid credentials. Please verify your admin access.');
+      setError(err.response?.data?.error || 'Failed to sign in. Please check your admin credentials.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex bg-[#0B0F19] text-slate-100 selection:bg-indigo-500 selection:text-white">
-      {/* Left Panel — Enterprise Tech Branding */}
-      <div className="hidden lg:flex lg:w-1/2 bg-[#0E1322] flex-col justify-between p-12 relative overflow-hidden border-r border-slate-800/80">
-        {/* Ambient Glows */}
-        <div className="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-indigo-600/10 blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-32 -left-16 w-96 h-96 rounded-full bg-cyan-500/10 blur-3xl pointer-events-none" />
-        <div className="absolute top-1/2 right-12 w-64 h-64 rounded-full bg-purple-600/5 blur-2xl pointer-events-none" />
+    <div className="min-h-screen flex bg-[var(--cream)]">
+      {/* Left Panel — Brand */}
+      <div className="hidden lg:flex lg:w-1/2 bg-[#1a1f2e] flex-col justify-between p-12 relative overflow-hidden">
+        {/* Decorative circles */}
+        <div className="absolute -top-24 -right-24 w-72 h-72 rounded-full bg-white/5" />
+        <div className="absolute -bottom-32 -left-16 w-96 h-96 rounded-full bg-white/5" />
+        <div className="absolute top-1/2 right-8 w-48 h-48 rounded-full bg-white/5" />
 
-        {/* Top Branding */}
         <div className="relative z-10 flex items-center gap-3">
-          <div className="w-11 h-11 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center shadow-lg shadow-indigo-500/5">
-            <ShieldCheck size={22} className="text-indigo-400" />
+          <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center">
+            <ShieldCheck size={20} className="text-white" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="font-display text-2xl text-white font-bold tracking-tight">MenuQR</h1>
-              <span className="bg-indigo-500/20 text-indigo-300 text-[10px] font-bold px-2 py-0.5 rounded-md border border-indigo-500/30 uppercase tracking-wider">
-                Console
-              </span>
-            </div>
-            <p className="text-slate-400 text-xs tracking-wider uppercase font-mono">Platform Admin Gateway</p>
+            <h1 className="font-display text-2xl text-white font-medium italic">MenuQR</h1>
+            <p className="text-white/60 text-xs tracking-wider uppercase">Super Admin Portal</p>
           </div>
         </div>
 
-        {/* Center Feature Highlights */}
-        <div className="relative z-10 space-y-6">
-          <div className="space-y-3">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-950/60 border border-indigo-700/40 text-indigo-300 text-xs font-semibold">
-              <Lock size={12} />
-              <span>Isolated Super Admin Environment</span>
-            </div>
-            <h2 className="text-white font-display text-3xl font-normal leading-snug">
-              Platform-wide orchestration, analytics, and café oversight.
-            </h2>
-            <p className="text-slate-400 text-sm leading-relaxed max-w-md">
-              Securely manage multi-tenant cafes, global announcements, platform revenue telemetry, and live status without interfering with individual café sessions.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 pt-2">
-            {[
-              { label: 'Multi-Tenant Management', desc: 'All onboarded cafes' },
-              { label: 'Platform Revenue Telemetry', desc: 'Realtime gross analytics' },
-              { label: 'Global Announcements', desc: 'Broadcast to all cafes' },
-              { label: 'Zero-Collision Auth', desc: 'Independent session keys' },
-            ].map(({ label, desc }) => (
-              <div key={label} className="bg-slate-900/60 border border-slate-800/80 rounded-xl p-3.5 space-y-1 backdrop-blur-sm">
-                <div className="flex items-center gap-1.5 text-indigo-400 text-xs font-semibold">
-                  <CheckCircle2 size={13} />
-                  <span>{label}</span>
-                </div>
-                <p className="text-[11px] text-slate-400">{desc}</p>
-              </div>
-            ))}
-          </div>
+        <div className="relative z-10 space-y-4">
+          <blockquote className="text-white/90 font-display text-3xl font-light leading-snug italic">
+            "Platform analytics, café accounts, and central management in one place."
+          </blockquote>
+          <p className="text-white/60 text-sm">
+            Separate admin gateway designed to prevent session conflicts with café owner accounts.
+          </p>
         </div>
 
-        {/* Footer Meta */}
-        <div className="relative z-10 flex items-center justify-between text-slate-500 text-xs font-mono">
-          <span>Security Protocol v2.4</span>
-          <span>End-to-End Isolated Session</span>
+        <div className="relative z-10 flex gap-6 text-white/40 text-xs">
+          <span>Super Admin</span>
+          <span>·</span>
+          <span>Multi-Tenant</span>
+          <span>·</span>
+          <span>Telemetry</span>
+          <span>·</span>
+          <span>Announcements</span>
         </div>
       </div>
 
-      {/* Right Panel — Login Form */}
-      <div className="flex-1 flex items-center justify-center px-6 py-16 relative">
-        <div className="w-full max-w-md space-y-7 relative z-10">
-          
-          {/* Header */}
-          <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-bold uppercase tracking-wider mb-3">
-              <ShieldCheck size={14} />
-              <span>Super Admin Portal</span>
-            </div>
-            <h2 className="text-3xl font-bold text-white tracking-tight">Admin Sign In</h2>
-            <p className="text-slate-400 text-sm mt-1">
-              Enter your root administrator credentials to access the platform console.
-            </p>
+      {/* Right Panel — Form */}
+      <div className="flex-1 flex items-center justify-center px-6 py-16">
+        <div className="w-full max-w-md space-y-8">
+          {/* Mobile brand */}
+          <div className="lg:hidden text-center">
+            <h1 className="font-display text-3xl text-[var(--sage)] font-medium italic">MenuQR</h1>
+            <p className="text-[var(--muted)] text-xs uppercase tracking-wider mt-1">Super Admin Portal</p>
           </div>
 
-          {/* Error Message with Smart Redirect */}
+          <div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-200 text-slate-700 text-xs font-semibold uppercase tracking-wider mb-2">
+              <ShieldCheck size={13} />
+              <span>Super Admin Portal</span>
+            </div>
+            <h2 className="font-display text-3xl text-[var(--text)] font-medium">Admin Sign In</h2>
+            <p className="text-[var(--muted)] text-sm mt-1">Sign in to access the platform console</p>
+          </div>
+
           {error && (
-            <div className="bg-red-950/40 border border-red-800/60 text-red-200 text-sm p-4 rounded-2xl space-y-3">
-              <div className="flex items-start gap-2.5">
-                <ShieldAlert size={18} className="text-red-400 shrink-0 mt-0.5" />
-                <span className="text-xs leading-relaxed font-medium">{error}</span>
+            <div className="bg-[var(--red-light)] border border-red-200 text-[var(--red-soft)] text-sm p-4 rounded-2xl space-y-2.5">
+              <div className="flex items-start gap-2">
+                <span className="mt-0.5">⚠️</span>
+                <span className="font-medium">{error}</span>
               </div>
               {isCafeAttempt && (
-                <div className="pt-2 border-t border-red-800/40 flex items-center justify-between">
-                  <span className="text-xs text-red-300">Are you a café owner?</span>
+                <div className="pt-2 border-t border-red-200/60 flex items-center justify-between">
+                  <span className="text-xs text-red-700">Are you a café owner?</span>
                   <Link
                     to="/login"
-                    className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#3D5A47] hover:bg-[#4E7060] text-white text-xs font-semibold rounded-xl transition-all shadow-sm"
+                    className="inline-flex items-center gap-1 px-3 py-1.5 bg-[var(--sage)] text-white text-xs font-semibold rounded-xl hover:bg-[var(--sage-mid)] transition-all shadow-sm"
                   >
                     <span>Café Login</span>
-                    <ArrowRight size={13} />
+                    <ArrowRight size={12} />
                   </Link>
                 </div>
               )}
             </div>
           )}
 
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-1.5">
-              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider font-mono">
+              <label className="block text-xs font-semibold text-[var(--text-mid)] uppercase tracking-wider">
                 Admin Email
               </label>
               <input
@@ -175,13 +148,13 @@ export default function AdminLogin() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-3.5 bg-slate-900/90 border border-slate-800 rounded-2xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm transition-all shadow-inner"
+                className="w-full px-4 py-3.5 bg-white border border-[var(--cream-border)] rounded-2xl text-[var(--text)] placeholder-[var(--muted-light)] focus:outline-none focus:ring-2 focus:ring-slate-700 focus:border-transparent text-sm transition-all"
                 placeholder="admin@menuqr.com"
               />
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider font-mono">
+              <label className="block text-xs font-semibold text-[var(--text-mid)] uppercase tracking-wider">
                 Password
               </label>
               <div className="relative">
@@ -191,13 +164,13 @@ export default function AdminLogin() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-4 py-3.5 pr-12 bg-slate-900/90 border border-slate-800 rounded-2xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm transition-all shadow-inner"
-                  placeholder="••••••••••••"
+                  className="w-full px-4 py-3.5 pr-12 bg-white border border-[var(--cream-border)] rounded-2xl text-[var(--text)] placeholder-[var(--muted-light)] focus:outline-none focus:ring-2 focus:ring-slate-700 focus:border-transparent text-sm transition-all"
+                  placeholder="••••••••"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--muted)] hover:text-[var(--text)] transition-colors"
                 >
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
@@ -207,46 +180,19 @@ export default function AdminLogin() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 disabled:opacity-50 text-white font-semibold rounded-2xl text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/30 active:scale-[0.98] mt-2"
+              className="w-full py-4 bg-[#1a1f2e] hover:bg-[#2a324b] disabled:opacity-60 text-white font-semibold rounded-2xl text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-slate-900/10 active:scale-[0.98]"
             >
-              {loading ? (
-                <>
-                  <Loader2 className="animate-spin" size={16} />
-                  <span>Authenticating Admin...</span>
-                </>
-              ) : (
-                <>
-                  <span>Enter Super Admin Console</span>
-                  <ArrowRight size={16} />
-                </>
-              )}
+              {loading && <Loader2 className="animate-spin" size={16} />}
+              {loading ? 'Signing in…' : 'Access Admin Console'}
             </button>
           </form>
 
-          {/* Session Separation Assurance Callout */}
-          <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4 flex items-start gap-3">
-            <div className="w-8 h-8 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center shrink-0 mt-0.5">
-              <Lock size={14} className="text-indigo-400" />
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-slate-200">Independent Admin Session</p>
-              <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
-                Super Admin tokens are stored independently from café owner tokens. You can stay signed into both without session collision or unexpected logouts.
-              </p>
-            </div>
-          </div>
-
-          {/* Switch to Cafe Login */}
-          <div className="text-center pt-2">
-            <Link
-              to="/login"
-              className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-200 transition-colors"
-            >
-              <span>Looking for the Café Owner Login?</span>
-              <span className="text-[#8FA898] font-semibold hover:underline">Click here →</span>
+          <p className="text-center text-sm text-[var(--muted)]">
+            Are you a café owner?{' '}
+            <Link to="/login" className="font-semibold text-[var(--sage)] hover:underline">
+              Go to Café Owner Login →
             </Link>
-          </div>
-
+          </p>
         </div>
       </div>
     </div>

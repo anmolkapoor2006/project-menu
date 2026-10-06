@@ -271,11 +271,18 @@ export default function PublicMenu() {
 
   const getWhatsAppLink = (order: any) => {
     if (!order) return '#';
-    const who = order.customerName || order.tableNumber ? `Customer: ${order.customerName || `Table ${order.tableNumber}`}` : 'Guest';
-    const items = order.items.map((i: any) => `• ${i.quantity}x ${i.menuItem.name} — ₹${(parseFloat(i.priceAtOrder) * i.quantity).toFixed(2)}${i.notes ? ` (${i.notes})` : ''}`).join('\n');
-    const total = order.items.reduce((s: number, i: any) => s + parseFloat(i.priceAtOrder) * i.quantity, 0).toFixed(2);
-    const msg = `🛒 *Order from ${restaurant?.name}*\n👤 *${who}*\n\n${items}\n\n💰 *Total: ₹${total}*`;
-    const phone = restaurant?.contactNumber?.replace(/\D/g, '') || '';
+    const who = order.customerName || order.tableNumber ? (order.customerName ? `${order.customerName}${order.tableNumber ? ` (Table ${order.tableNumber})` : ''}` : `Table ${order.tableNumber}`) : 'Guest Customer';
+    const items = order.items.map((i: any) => `• ${i.quantity}x ${i.menuItem?.name || i.name} — ₹${(parseFloat(i.priceAtOrder || i.price) * i.quantity).toFixed(0)}${i.notes ? ` (${i.notes})` : ''}`).join('\n');
+    const total = order.items.reduce((s: number, i: any) => s + parseFloat(i.priceAtOrder || i.price) * i.quantity, 0).toFixed(0);
+    const payStatus = order.paymentMethod === 'UPI' ? '✅ Paid via UPI' : '💵 Pay at Counter';
+    const orderNum = order.id ? `#${order.id.slice(-6).toUpperCase()}` : '';
+
+    const msg = `🧾 *NEW ORDER ${orderNum}*\n🏪 *${restaurant?.name || 'Cafe'}*\n👤 *Customer:* ${who}\n💳 *Payment Status:* ${payStatus}\n\n📝 *Order Items:*\n${items}\n\n💰 *Total Amount: ₹${total}*\n⏰ *Date:* ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}\n\n_Sent via MenuQR Digital Menu_`;
+
+    let phone = restaurant?.contactNumber?.replace(/\D/g, '') || '';
+    if (phone.length === 10) {
+      phone = `91${phone}`;
+    }
     return phone ? `https://wa.me/${phone}?text=${encodeURIComponent(msg)}` : `https://wa.me/?text=${encodeURIComponent(msg)}`;
   };
 
@@ -454,12 +461,20 @@ export default function PublicMenu() {
               </div>
             )}
 
-            <button
-              onClick={() => window.open(getWhatsAppLink(lastPlacedOrder), '_blank')}
-              className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-2xl text-sm flex items-center justify-center gap-2 transition-all"
-            >
-              <MessageCircle size={17} /> Share via WhatsApp
-            </button>
+            <div className="space-y-2 pt-1">
+              <button
+                onClick={() => window.open(getWhatsAppLink(lastPlacedOrder), '_blank')}
+                className="w-full py-4 bg-[#25D366] hover:bg-[#1EBE5D] text-white font-bold rounded-2xl text-sm flex items-center justify-center gap-2.5 transition-all shadow-lg shadow-emerald-500/20 active:scale-[0.98]"
+              >
+                <MessageCircle size={20} className="fill-white/20" />
+                <span>Notify Café Owner on WhatsApp</span>
+              </button>
+              {restaurant.contactNumber && (
+                <p className="text-[11px] text-[var(--muted)] text-center">
+                  Sends instant order receipt to <span className="font-semibold text-[var(--text)]">{restaurant.contactNumber}</span>
+                </p>
+              )}
+            </div>
 
             <button
               onClick={() => {
@@ -467,7 +482,7 @@ export default function PublicMenu() {
                 setLastPlacedOrder(null);
                 setView('menu');
               }}
-              className="w-full py-3 border border-[var(--cream-border)] text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--cream)] font-semibold rounded-2xl text-sm transition-all"
+              className="w-full py-3.5 border border-[var(--cream-border)] text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--cream)] font-semibold rounded-2xl text-sm transition-all"
             >
               Order More Items
             </button>

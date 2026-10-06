@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import api from '../api/api';
 import { getSocket, joinRestaurantRoom } from '../utils/socket';
-import { Play, Check, X, Bell, Clock, IndianRupee, RefreshCw, Radio } from 'lucide-react';
+import { Play, Check, X, Bell, Clock, IndianRupee, RefreshCw, Loader2, Radio } from 'lucide-react';
 import { unlockAudioContext } from '../utils/audio';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -218,8 +218,8 @@ export default function LiveOrders({ restaurantId, audioArmed, isActive = true }
     socket.on('new_order', onNewOrder);
     socket.on('order_updated', onOrderUpdated);
 
-    // 3. Fast Auto-Polling (1.2s when active, 3s when idle) to guarantee instant zero-refresh updates
-    const pollIntervalMs = isActive ? 1200 : 3000;
+    // 3. Auto-Polling fallback (5s when active, 10s when idle)
+    const pollIntervalMs = isActive ? 5000 : 10000;
     const pollTimer = setInterval(() => {
       syncOrdersSilently(false);
     }, pollIntervalMs);
@@ -287,22 +287,33 @@ export default function LiveOrders({ restaurantId, audioArmed, isActive = true }
     }
   };
 
+  const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
+
   // ── Status update ──────────────────────────────────────────────────────────
   const handleUpdateStatus = async (
     orderId: string,
     nextStatus: 'RECEIVED' | 'PREPARING' | 'SERVED' | 'CANCELLED',
   ) => {
+    if (updatingOrderId === orderId) return; // Prevent double click
+    setUpdatingOrderId(orderId);
+
     const prev = [...orders];
     // Optimistic local state update for instant UI feedback
     setOrders((c) => c.map((o) => (o.id === orderId ? { ...o, status: nextStatus } : o)));
+
     try {
       const res = await api.put(`/api/orders/${orderId}/status`, { status: nextStatus });
       if (res.data.order) {
         setOrders((c) => c.map((o) => (o.id === orderId ? res.data.order : o)));
+        sessionStorage.setItem(`orders_${restaurantId}`, JSON.stringify(
+          ordersRef.current.map((o) => (o.id === orderId ? res.data.order : o))
+        ));
       }
     } catch (err) {
       setOrders(prev);
-      alert('Could not update order status. Please check your internet connection.');
+      alert('Could not update order status. Please check your network connection.');
+    } finally {
+      setUpdatingOrderId(null);
     }
   };
 
@@ -524,29 +535,36 @@ export default function LiveOrders({ restaurantId, audioArmed, isActive = true }
                     {order.status === 'PAYMENT_PENDING_VERIFICATION' ? (
                       <button
                         onClick={() => handleUpdateStatus(order.id, 'RECEIVED')}
-                        className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-semibold transition-all active:scale-[0.98] cursor-pointer"
+                        disabled={updatingOrderId === order.id}
+                        className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white rounded-xl text-sm font-semibold transition-all active:scale-[0.98] cursor-pointer"
                       >
-                        <Check size={15} /> Mark as Paid
+                        {updatingOrderId === order.id ? <Loader2 className="animate-spin" size={15} /> : <Check size={15} />}
+                        <span>{updatingOrderId === order.id ? 'Updating…' : 'Mark as Paid'}</span>
                       </button>
                     ) : order.status === 'RECEIVED' ? (
                       <button
                         onClick={() => handleUpdateStatus(order.id, 'PREPARING')}
-                        className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-[var(--sage)] hover:bg-[var(--sage-mid)] text-white rounded-xl text-sm font-semibold transition-all active:scale-[0.98] cursor-pointer"
+                        disabled={updatingOrderId === order.id}
+                        className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-[var(--sage)] hover:bg-[var(--sage-mid)] disabled:opacity-60 text-white rounded-xl text-sm font-semibold transition-all active:scale-[0.98] cursor-pointer"
                       >
-                        <Play size={13} /> Start Preparing
+                        {updatingOrderId === order.id ? <Loader2 className="animate-spin" size={14} /> : <Play size={13} />}
+                        <span>{updatingOrderId === order.id ? 'Starting…' : 'Start Preparing'}</span>
                       </button>
                     ) : (
                       <button
                         onClick={() => handleUpdateStatus(order.id, 'SERVED')}
-                        className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-semibold transition-all active:scale-[0.98] cursor-pointer"
+                        disabled={updatingOrderId === order.id}
+                        className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white rounded-xl text-sm font-semibold transition-all active:scale-[0.98] cursor-pointer"
                       >
-                        <Check size={15} /> Complete & Serve
+                        {updatingOrderId === order.id ? <Loader2 className="animate-spin" size={15} /> : <Check size={15} />}
+                        <span>{updatingOrderId === order.id ? 'Completing…' : 'Complete & Serve'}</span>
                       </button>
                     )}
                     <button
                       onClick={() => handleUpdateStatus(order.id, 'CANCELLED')}
+                      disabled={updatingOrderId === order.id}
                       title="Cancel order"
-                      className="p-2.5 border border-[var(--cream-border)] hover:bg-red-50 hover:border-red-200 text-[var(--muted)] hover:text-red-600 rounded-xl transition-all cursor-pointer"
+                      className="p-2.5 border border-[var(--cream-border)] hover:bg-red-50 hover:border-red-200 disabled:opacity-40 text-[var(--muted)] hover:text-red-600 rounded-xl transition-all cursor-pointer"
                     >
                       <X size={15} />
                     </button>

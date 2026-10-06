@@ -69,6 +69,9 @@ export default function Dashboard() {
   const audioArmedRef = useRef(audioArmed);
   useEffect(() => { audioArmedRef.current = audioArmed; }, [audioArmed]);
 
+  const activeTabRef = useRef(activeTab);
+  useEffect(() => { activeTabRef.current = activeTab; }, [activeTab]);
+
   useEffect(() => {
     const fetchMe = async () => {
       try {
@@ -203,9 +206,9 @@ export default function Dashboard() {
         );
         setActiveOrderCount(activeList.length);
 
-        // Check if new orders appeared that weren't in previous set
+        // Check if new orders appeared that weren't in previous set (only alert if not on Live Kitchen tab)
         const currentIds = new Set<string>(list.map((o: any) => o.id));
-        if (prevOrderIdsRef.current.size > 0) {
+        if (prevOrderIdsRef.current.size > 0 && activeTabRef.current !== 'orders') {
           const newOrder = list.find((o: any) => !prevOrderIdsRef.current.has(o.id));
           if (newOrder) {
             handleNewOrder(newOrder);
@@ -218,7 +221,7 @@ export default function Dashboard() {
     };
 
     pollActiveOrders();
-    const interval = setInterval(pollActiveOrders, 2500);
+    const interval = setInterval(pollActiveOrders, 8000);
 
     return () => {
       socket.off('staff_call', handleStaffCall);

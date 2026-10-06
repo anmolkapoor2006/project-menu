@@ -123,12 +123,23 @@ export default function PublicMenu() {
         const isFresh = searchParams.get('reset') === 'true' || searchParams.get('fresh') === 'true';
         if (isFresh) localStorage.removeItem(`last_order_${slug}`);
 
-        const existingId = !isFresh && (searchParams.get('orderId') || localStorage.getItem(`last_order_${slug}`));
-        if (existingId) {
+        const explicitOrderId = searchParams.get('orderId');
+        if (explicitOrderId) {
           try {
-            const orderRes = await api.get(`/api/public/orders/${existingId}`);
-            if (orderRes.data.order) { setLastPlacedOrder(orderRes.data.order); setView('confirmation'); }
-          } catch { /* no existing order */ }
+            const orderRes = await api.get(`/api/public/orders/${explicitOrderId}`);
+            if (orderRes.data.order) {
+              setLastPlacedOrder(orderRes.data.order);
+              setView('confirmation');
+            }
+          } catch { /* order not found */ }
+        } else {
+          // If returning visitor has a previous order in localStorage, prefetch it silently without switching view
+          const savedOrderId = localStorage.getItem(`last_order_${slug}`);
+          if (savedOrderId) {
+            api.get(`/api/public/orders/${savedOrderId}`).then((res) => {
+              if (res.data.order) setLastPlacedOrder(res.data.order);
+            }).catch(() => {});
+          }
         }
       } catch (err: any) {
         if (!restaurant) {
